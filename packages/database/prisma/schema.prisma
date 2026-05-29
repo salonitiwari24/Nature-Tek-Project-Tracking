@@ -1,0 +1,498 @@
+// Nature Tek Solar PMS – Database Schema
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum SystemRole {
+  ADMIN
+  PM
+  SUPERVISOR
+  MEMBER
+  EXEC
+  DESIGN
+  PROCUREMENT
+  QA
+  FINANCE
+  CLIENT
+  SERVICE
+}
+
+enum ProjectLifecycleStage {
+  PROJECT_CREATED
+  SITE_SURVEY
+  DESIGN_APPROVAL
+  MATERIAL_PROCUREMENT
+  MATERIAL_DELIVERY
+  STRUCTURE_INSTALLATION
+  PANEL_MOUNTING
+  ELECTRICAL_WIRING
+  INVERTER_INSTALLATION
+  TESTING_COMMISSIONING
+  GRID_APPROVAL
+  PROJECT_HANDOVER
+  COMPLETED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectType {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+}
+
+enum ProjectMemberRole {
+  PM
+  SUPERVISOR
+  MEMBER
+  VIEWER
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+enum MaterialLineStatus {
+  PLANNED
+  ORDERED
+  IN_TRANSIT
+  DELIVERED
+  INSTALLED
+}
+
+enum ApprovalType {
+  DESIGN
+  PROCUREMENT
+  QA
+  HANDOVER
+  STAGE_GATE
+  BUDGET
+  OTHER
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum ApprovalStepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum DocumentCategory {
+  SURVEY
+  DESIGN
+  PERMIT
+  PHOTO
+  TEST
+  HANDOVER
+  OTHER
+}
+
+enum NotificationType {
+  TASK_DUE
+  MILESTONE_OVERDUE
+  APPROVAL_PENDING
+  STAGE_CHANGE
+  SYSTEM
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  STAGE_ADVANCE
+  STAGE_ROLLBACK
+  APPROVE
+  REJECT
+}
+
+// ─── Organization & Users ────────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users    User[]
+  projects Project[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  orgId        String     @map("org_id")
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  firstName    String     @map("first_name")
+  lastName     String     @map("last_name")
+  role         SystemRole @default(MEMBER)
+  isActive     Boolean    @default(true) @map("is_active")
+  avatarUrl    String?    @map("avatar_url")
+  deletedAt    DateTime?  @map("deleted_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  refreshTokens       RefreshToken[]
+  projectMemberships  ProjectMember[]
+  managedProjects     Project[]           @relation("ProjectManager")
+  supervisedProjects  Project[]           @relation("SiteSupervisor")
+  assignedTasks       Task[]              @relation("TaskAssignee")
+  taskComments        TaskComment[]
+  documentVersions    DocumentVersion[]
+  approvalSteps       ApprovalStep[]
+  requestedApprovals  ApprovalRequest[]   @relation("ApprovalRequester")
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  lifecycleChanges    LifecycleStageHistory[]
+
+  @@index([orgId, role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Projects & Lifecycle ────────────────────────────────────────────────────
+
+model Project {
+  id            String                @id @default(uuid())
+  orgId         String                @map("org_id")
+  code          String
+  name          String
+  description   String?
+  clientName    String                @map("client_name")
+  clientEmail   String?               @map("client_email")
+  clientPhone   String?               @map("client_phone")
+  siteAddress   String                @map("site_address")
+  siteCity      String?               @map("site_city")
+  siteState     String?               @map("site_state")
+  capacityKw    Decimal               @map("capacity_kw") @db.Decimal(10, 2)
+  projectType   ProjectType           @default(RESIDENTIAL) @map("project_type")
+  currentStage  ProjectLifecycleStage @default(PROJECT_CREATED) @map("current_stage")
+  status        ProjectStatus         @default(ACTIVE)
+  pmId          String?               @map("pm_id")
+  supervisorId  String?               @map("supervisor_id")
+  permitNumber  String?               @map("permit_number")
+  utilityAccount String?              @map("utility_account")
+  targetStart   DateTime?             @map("target_start")
+  targetEnd     DateTime?             @map("target_end")
+  actualStart   DateTime?             @map("actual_start")
+  actualEnd     DateTime?             @map("actual_end")
+  deletedAt     DateTime?             @map("deleted_at")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  pm           User?        @relation("ProjectManager", fields: [pmId], references: [id])
+  supervisor   User?        @relation("SiteSupervisor", fields: [supervisorId], references: [id])
+
+  members         ProjectMember[]
+  stageHistory    LifecycleStageHistory[]
+  tasks           Task[]
+  milestones      Milestone[]
+  documents       Document[]
+  materialLines   MaterialLine[]
+  approvalRequests ApprovalRequest[]
+
+  @@unique([orgId, code])
+  @@index([orgId, status])
+  @@index([currentStage])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id          String            @id @default(uuid())
+  projectId   String            @map("project_id")
+  userId      String            @map("user_id")
+  projectRole ProjectMemberRole @default(MEMBER) @map("project_role")
+  joinedAt    DateTime          @default(now()) @map("joined_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model LifecycleStageHistory {
+  id         String                 @id @default(uuid())
+  projectId  String                 @map("project_id")
+  fromStage  ProjectLifecycleStage? @map("from_stage")
+  toStage    ProjectLifecycleStage  @map("to_stage")
+  changedBy  String                 @map("changed_by")
+  reason     String?
+  createdAt  DateTime               @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User    @relation(fields: [changedBy], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("lifecycle_stage_history")
+}
+
+// ─── Work Management ───────────────────────────────────────────────────────────
+
+model Task {
+  id          String                 @id @default(uuid())
+  projectId   String                 @map("project_id")
+  stage       ProjectLifecycleStage? @map("stage")
+  title       String
+  description String?
+  status      TaskStatus             @default(NOT_STARTED)
+  priority    TaskPriority           @default(MEDIUM)
+  assigneeId  String?                @map("assignee_id")
+  dueAt       DateTime?              @map("due_at")
+  completedAt DateTime?              @map("completed_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?         @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  comments TaskComment[]
+
+  @@index([projectId, status])
+  @@index([assigneeId, status])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  authorId  String   @map("author_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([taskId])
+  @@map("task_comments")
+}
+
+model Milestone {
+  id          String                 @id @default(uuid())
+  projectId   String                 @map("project_id")
+  stage       ProjectLifecycleStage  @map("stage")
+  name        String
+  description String?
+  status      MilestoneStatus        @default(PENDING)
+  targetDate  DateTime?              @map("target_date")
+  completedAt DateTime?              @map("completed_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, stage])
+  @@map("milestones")
+}
+
+// ─── Resources ─────────────────────────────────────────────────────────────────
+
+model MaterialLine {
+  id          String             @id @default(uuid())
+  projectId   String             @map("project_id")
+  sku         String?
+  description String
+  quantity    Decimal            @db.Decimal(12, 3)
+  unit        String             @default("ea")
+  status      MaterialLineStatus @default(PLANNED)
+  notes       String?
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("material_lines")
+}
+
+// ─── Documents ─────────────────────────────────────────────────────────────────
+
+model Document {
+  id               String            @id @default(uuid())
+  projectId        String            @map("project_id")
+  category         DocumentCategory  @default(OTHER)
+  title            String
+  requiredForStage ProjectLifecycleStage? @map("required_for_stage")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  project  Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions DocumentVersion[]
+
+  @@index([projectId, category])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String   @map("document_id")
+  version     Int      @default(1)
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  sizeBytes   Int      @map("size_bytes")
+  storageKey  String   @map("storage_key")
+  uploadedBy  String   @map("uploaded_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader User     @relation(fields: [uploadedBy], references: [id])
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+// ─── Approvals ─────────────────────────────────────────────────────────────────
+
+model ApprovalRequest {
+  id          String         @id @default(uuid())
+  projectId   String         @map("project_id")
+  type        ApprovalType
+  status      ApprovalStatus @default(DRAFT)
+  title       String
+  description String?
+  requestedBy String         @map("requested_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester User           @relation("ApprovalRequester", fields: [requestedBy], references: [id])
+  steps     ApprovalStep[]
+
+  @@index([projectId, status])
+  @@map("approval_requests")
+}
+
+model ApprovalStep {
+  id        String             @id @default(uuid())
+  requestId String             @map("request_id")
+  stepOrder Int                @map("step_order")
+  approverId String            @map("approver_id")
+  status    ApprovalStepStatus @default(PENDING)
+  comment   String?
+  actedAt   DateTime?          @map("acted_at")
+
+  request  ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approver User            @relation(fields: [approverId], references: [id])
+
+  @@index([approverId, status])
+  @@map("approval_steps")
+}
+
+// ─── Notifications & Audit ─────────────────────────────────────────────────────
+
+model Notification {
+  id         String           @id @default(uuid())
+  userId     String           @map("user_id")
+  type       NotificationType
+  title      String
+  body       String
+  entityType String?          @map("entity_type")
+  entityId   String?          @map("entity_id")
+  readAt     DateTime?        @map("read_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  orgId      String      @map("org_id")
+  actorId    String?     @map("actor_id")
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String      @map("entity_id")
+  metadata   Json        @default("{}")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ─── Configuration ─────────────────────────────────────────────────────────────
+
+model StageRequirement {
+  id               String                @id @default(uuid())
+  stage            ProjectLifecycleStage @unique
+  requiredDocCats  DocumentCategory[]    @map("required_doc_cats")
+  milestoneNames   String[]              @map("milestone_names")
+  approvalTypes    ApprovalType[]        @map("approval_types")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  @@map("stage_requirements")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
