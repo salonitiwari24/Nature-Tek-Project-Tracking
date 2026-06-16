@@ -1,6 +1,34 @@
-import { mockUsers, UserDetail, UserRole } from '../mocks/userMockData';
+import { api } from '../lib/api';
 
-let localUsers: UserDetail[] = [...mockUsers];
+export type UserRole =
+  | 'ADMIN'
+  | 'PM'
+  | 'SUPERVISOR'
+  | 'MEMBER'
+  | 'EXEC'
+  | 'DESIGN'
+  | 'PROCUREMENT'
+  | 'QA'
+  | 'FINANCE'
+  | 'CLIENT'
+  | 'SERVICE';
+
+export interface UserDetail {
+  id: string;
+
+  firstName: string;
+  lastName: string;
+
+  email: string;
+
+  role: UserRole;
+
+  isActive: boolean;
+
+  avatarUrl?: string | null;
+
+  createdAt?: string;
+}
 
 export interface GetUsersFilters {
   search?: string;
@@ -18,102 +46,254 @@ export interface PaginatedUsers {
   totalPages: number;
 }
 
+export interface CreateUserInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+  isActive?: boolean;
+}
+
 export class UserService {
-  private static LATENCY = 80;
+  static async getUsers(
+    filters: GetUsersFilters = {}
+  ): Promise<PaginatedUsers> {
+    const params =
+      new URLSearchParams();
 
-  private static delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  static async getUsers(filters: GetUsersFilters = {}): Promise<PaginatedUsers> {
-    await this.delay(this.LATENCY);
-
-    const { search = '', role = 'ALL', status = 'ALL', page = 1, limit = 10 } = filters;
-
-    let filtered = [...localUsers];
-
-    // Apply Search
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(
-        (u) =>
-          u.name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q) ||
-          u.id.toLowerCase().includes(q)
+    if (
+      filters.role &&
+      filters.role !==
+        'ALL'
+    ) {
+      params.append(
+        'role',
+        filters.role
       );
     }
 
-    // Apply Role
-    if (role && role !== 'ALL') {
-      filtered = filtered.filter((u) => u.role === role);
+    const query =
+      params.toString();
+
+    const users =
+      await api<any[]>(
+        `/users${
+          query
+            ? `?${query}`
+            : ''
+        }`
+      );
+
+    let filtered =
+      [...users];
+
+    // search frontend-side
+    if (
+      filters.search?.trim()
+    ) {
+      const q =
+        filters.search.toLowerCase();
+
+      filtered =
+        filtered.filter(
+          (u) =>
+            `${u.firstName} ${u.lastName}`
+              .toLowerCase()
+              .includes(q) ||
+            u.email
+              .toLowerCase()
+              .includes(q)
+        );
     }
 
-    // Apply Status
-    if (status && status !== 'ALL') {
-      filtered = filtered.filter((u) => u.status === status);
+    // active/inactive filter
+    if (
+      filters.status &&
+      filters.status !==
+        'ALL'
+    ) {
+      filtered =
+        filtered.filter(
+          (u) =>
+            filters.status ===
+            'ACTIVE'
+              ? u.isActive
+              : !u.isActive
+        );
     }
 
-    const total = filtered.length;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedData = filtered.slice(startIndex, endIndex);
-    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const mapped =
+      filtered.map(
+        (u) => ({
+          id: u.id,
+
+          firstName:
+            u.firstName,
+
+          lastName:
+            u.lastName,
+
+          email:
+            u.email,
+
+          role:
+            u.role,
+
+          isActive:
+            u.isActive,
+
+          avatarUrl:
+            u.avatarUrl,
+
+          createdAt:
+            u.createdAt,
+        })
+      );
 
     return {
-      data: paginatedData,
-      total,
-      page,
-      limit,
-      totalPages,
+      data: mapped,
+      total:
+        mapped.length,
+      page:
+        filters.page ??
+        1,
+      limit:
+        filters.limit ??
+        10,
+      totalPages: 1,
     };
   }
 
-  static async getUserById(id: string): Promise<UserDetail | null> {
-    await this.delay(this.LATENCY);
-    const found = localUsers.find((u) => u.id === id);
-    return found ? { ...found } : null;
-  }
+  static async getUserById(
+    id: string
+  ): Promise<UserDetail> {
+    const user =
+      await api<any>(
+        `/users/${id}`
+      );
 
-  static async createUser(data: Omit<UserDetail, 'id' | 'lastActivity' | 'performance'>): Promise<UserDetail> {
-    await this.delay(this.LATENCY);
+    return {
+      id: user.id,
 
-    const id = `u-${localUsers.length + 101}`;
-    const newUser: UserDetail = {
-      ...data,
-      id,
-      lastActivity: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      performance: {
-        assignedTasks: 0,
-        completedTasks: 0,
-        overdueTasks: 0,
-        completionRate: 0,
-      },
+      firstName:
+        user.firstName,
+
+      lastName:
+        user.lastName,
+
+      email:
+        user.email,
+
+      role:
+        user.role,
+
+      isActive:
+        user.isActive,
+
+      avatarUrl:
+        user.avatarUrl,
+
+      createdAt:
+        user.createdAt,
     };
-
-    localUsers.push(newUser);
-    return newUser;
   }
 
-  static async updateUser(id: string, updates: Partial<UserDetail>): Promise<UserDetail | null> {
-    await this.delay(this.LATENCY);
-    const index = localUsers.findIndex((u) => u.id === id);
-    if (index < 0) return null;
+  static async createUser(
+    data: CreateUserInput
+  ): Promise<UserDetail> {
+    const user =
+      await api<any>(
+        '/users',
+        {
+          method: 'POST',
+          body: JSON.stringify(
+            {
+              ...data,
 
-    const current = localUsers[index];
-    const updated: UserDetail = {
-      ...current,
-      ...updates,
-      id: current.id,
+              // temporary password
+              password:
+                'Password@123',
+            }
+          ),
+        }
+      );
+
+    return {
+      id: user.id,
+
+      firstName:
+        user.firstName,
+
+      lastName:
+        user.lastName,
+
+      email:
+        user.email,
+
+      role:
+        user.role,
+
+      isActive:
+        user.isActive,
+
+      avatarUrl:
+        user.avatarUrl,
+
+      createdAt:
+        user.createdAt,
     };
-
-    localUsers[index] = updated;
-    return updated;
   }
 
-  static async deleteUser(id: string): Promise<boolean> {
-    await this.delay(this.LATENCY);
-    const before = localUsers.length;
-    localUsers = localUsers.filter((u) => u.id !== id);
-    return localUsers.length < before;
+  static async updateUser(
+    id: string,
+    updates: Partial<CreateUserInput>
+  ): Promise<UserDetail> {
+    const user =
+      await api<any>(
+        `/users/${id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(
+            updates
+          ),
+        }
+      );
+
+    return {
+      id: user.id,
+
+      firstName:
+        user.firstName,
+
+      lastName:
+        user.lastName,
+
+      email:
+        user.email,
+
+      role:
+        user.role,
+
+      isActive:
+        user.isActive,
+
+      avatarUrl:
+        user.avatarUrl,
+
+      createdAt:
+        user.createdAt,
+    };
+  }
+
+  static async deleteUser(
+    id: string
+  ): Promise<void> {
+    await api(
+      `/users/${id}`,
+      {
+        method:
+          'DELETE',
+      }
+    );
   }
 }

@@ -31,8 +31,6 @@ import {
 import { ProjectService } from '../services/projectService';
 import { TaskService } from '../services/taskService';
 import { MilestoneService } from '../services/milestoneService';
-import { UserService } from '../services/userService';
-import { DocumentService } from '../services/documentService';
 
 // Harmonious Curated Theme Colors (Nature HSLs)
 const COLORS = {
@@ -66,10 +64,10 @@ export default function ReportsPage() {
     totalMilestones: 0,
     completedMilestones: 0,
     overdueMilestones: 0,
-    resourceUtilization: 78, // Requirement 1: utilization %
+    resourceUtilization: 78,
   });
 
-  // Approval Analytics (Requirement 2)
+  // Approval Analytics
   const [approvalStats, setApprovalStats] = useState({
     pending: 0,
     approved: 0,
@@ -77,7 +75,7 @@ export default function ReportsPage() {
     avgTime: 0,
   });
 
-  // 12 Charts Data States
+  // Charts Data States
   const [projectStatusData, setProjectStatusData] = useState<any[]>([]);
   const [projectCompletionData, setProjectCompletionData] = useState<any[]>([]);
   const [projectHealthData, setProjectHealthData] = useState<any[]>([]);
@@ -90,38 +88,74 @@ export default function ReportsPage() {
   const [capacityTypeData, setCapacityTypeData] = useState<any[]>([]);
   const [teamPerformanceData, setTeamPerformanceData] = useState<any[]>([]);
   const [lifecycleDurationData, setLifecycleDurationData] = useState<any[]>([]);
-
-  // Resource Analytics (Requirement 1)
   const [engineersAssignedData, setEngineersAssignedData] = useState<any[]>([]);
   const [equipmentAllocationData, setEquipmentAllocationData] = useState<any[]>([]);
 
   const loadAllAnalytics = async () => {
     setLoading(true);
     try {
-      // 1. Fetch live service metrics
-      const projsResult = await ProjectService.getProjects({ limit: 100 });
-      const tasksResult = await TaskService.getTasks({ limit: 200 });
-      const milestonesResult = await MilestoneService.getMilestones({ limit: 200 });
-      const usersResult = await UserService.getUsers({ limit: 100 });
-      const docApprovals = await DocumentService.getApprovalStats();
+      // Fetch live service metrics
+      const projs =
+        (await ProjectService.getProjects({ limit: 100 })) ?? [];
 
-      const projs = projsResult.data;
-      const tasks = tasksResult.data;
-      const milestones = milestonesResult.data;
-      const users = usersResult.data;
+      const tasks =
+        (await TaskService.getTasks({ limit: 200 })) ?? [];
 
-      // 2. Compute dynamic KPIs
-      const activeProjectsCount = projs.filter((p) => p.status === 'IN_PROGRESS' || p.status === 'PLANNING').length;
-      const completedProjectsCount = projs.filter((p) => p.status === 'COMPLETED').length;
-      const delayedProjectsCount = projs.filter((p) => p.status === 'DELAYED').length;
+      const milestonesResult =
+        await MilestoneService.getMilestones({ limit: 200 });
 
-      const completedTasksCount = tasks.filter((t) => t.status === 'DONE').length;
-      // Overdue: status !== DONE and dueDate < simulated today
-      const todayLimit = new Date('2026-05-29');
-      const overdueTasksCount = tasks.filter((t) => t.status !== 'DONE' && new Date(t.dueDate) < todayLimit).length;
+      const milestones = milestonesResult.data ?? [];
 
-      const completedMilestonesCount = milestones.filter((m) => m.status === 'COMPLETED').length;
-      const overdueMilestonesCount = milestones.filter((m) => m.status === 'OVERDUE').length;
+      // TEMP MOCK DATA until Users & Documents backend exists
+      const users = [
+        {
+          name: 'Rajesh Kumar',
+          performance: { completionRate: 92, completedTasks: 24 },
+        },
+        {
+          name: 'Amit Sharma',
+          performance: { completionRate: 81, completedTasks: 19 },
+        },
+        {
+          name: 'Neha Patel',
+          performance: { completionRate: 76, completedTasks: 17 },
+        },
+      ];
+
+      const docApprovals = {
+        pending: 2,
+        approved: 8,
+        rejected: 1,
+        averageTimeMinutes: 35,
+      };
+
+      // Compute dynamic KPIs
+      const activeProjectsCount = projs.filter(
+        (p) => p.status === 'ACTIVE'
+      ).length;
+      const completedProjectsCount = projs.filter(
+        (p) => p.status === 'COMPLETED'
+      ).length;
+
+      const completedTasksCount = tasks.filter(
+        (t) => t.status === 'COMPLETED'
+      ).length;
+
+      const todayLimit = new Date();
+      const overdueTasksCount = tasks.filter(
+        (t) => t.status !== 'COMPLETED' && t.dueAt && new Date(t.dueAt) < todayLimit
+      ).length;
+
+      // Derived delayed projects count (temporary until milestone/task linking exists)
+      const delayedProjectsCount =
+        overdueTasksCount > 0 ? Math.ceil(overdueTasksCount / 2) : 0;
+
+      const completedMilestonesCount = milestones.filter(
+        (m) => m.status === 'COMPLETED'
+      ).length;
+      const overdueMilestonesCount = milestones.filter(
+        (m) => m.status === 'OVERDUE'
+      ).length;
 
       setKpi({
         totalProjects: projs.length,
@@ -134,10 +168,10 @@ export default function ReportsPage() {
         totalMilestones: milestones.length,
         completedMilestones: completedMilestonesCount,
         overdueMilestones: overdueMilestonesCount,
-        resourceUtilization: 82, // Standard staff utilization in regional grids
+        resourceUtilization: 82,
       });
 
-      // Approval Analytics (Requirement 2)
+      // Approval Analytics
       setApprovalStats({
         pending: docApprovals.pending,
         approved: docApprovals.approved,
@@ -145,19 +179,19 @@ export default function ReportsPage() {
         avgTime: docApprovals.averageTimeMinutes,
       });
 
-      // 3. Project Status Distribution
-      const planningP = projs.filter((p) => p.status === 'PLANNING').length;
-      const activeP = projs.filter((p) => p.status === 'IN_PROGRESS').length;
-      const delayedP = projs.filter((p) => p.status === 'DELAYED').length;
+      // Chart 1: Project Status Distribution
+      const activeP = projs.filter((p) => p.status === 'ACTIVE').length;
+      const onHoldP = projs.filter((p) => p.status === 'ON_HOLD').length;
+      const archivedP = projs.filter((p) => p.status === 'ARCHIVED').length;
       const completedP = projs.filter((p) => p.status === 'COMPLETED').length;
       setProjectStatusData([
-        { name: 'Planning', value: planningP, color: COLORS.status.PLANNING },
-        { name: 'In Progress', value: activeP, color: COLORS.status.IN_PROGRESS },
-        { name: 'Delayed', value: delayedP, color: COLORS.status.DELAYED },
+        { name: 'Active', value: activeP, color: COLORS.status.IN_PROGRESS },
+        { name: 'On Hold', value: onHoldP, color: '#f59e0b' },
+        { name: 'Archived', value: archivedP, color: '#64748b' },
         { name: 'Completed', value: completedP, color: COLORS.status.COMPLETED },
       ]);
 
-      // 4. Project Completion Trend (Monthly Cumulative)
+      // Chart 2: Project Completion Trend (Monthly Cumulative)
       setProjectCompletionData([
         { month: 'Jan', completed: 1 },
         { month: 'Feb', completed: 2 },
@@ -166,38 +200,40 @@ export default function ReportsPage() {
         { month: 'May', completed: 8 },
       ]);
 
-      // 5. Project Health Distribution
-      const onTrackCount = projs.filter((p) => p.status === 'COMPLETED' || p.status === 'PLANNING').length;
-      const atRiskCount = projs.filter((p) => p.status === 'IN_PROGRESS' && p.progress < 50).length;
-      const delayedCount = projs.filter((p) => p.status === 'DELAYED').length;
+      // Chart 3: Project Health Distribution
+      const onTrackCount = projs.filter(
+        (p) => p.status === 'COMPLETED'
+      ).length;
+      const atRiskCount = projs.filter(
+        (p) => p.status === 'ACTIVE' && ProjectService.calculateProgress(p) < 50
+      ).length;
       setProjectHealthData([
         { name: 'On Track', value: Math.max(1, onTrackCount), color: COLORS.health.ON_TRACK },
         { name: 'At Risk', value: Math.max(1, atRiskCount), color: COLORS.health.AT_RISK },
-        { name: 'Delayed', value: Math.max(1, delayedCount), color: COLORS.health.DELAYED },
+        { name: 'Delayed', value: Math.max(1, delayedProjectsCount), color: COLORS.health.DELAYED },
       ]);
 
-      // 6. Task Status Distribution
+      // Chart 4: Task Status Distribution
       const todoT = tasks.filter((t) => t.status === 'NOT_STARTED').length;
       const ipT = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
-      const revT = tasks.filter((t) => t.status === 'IN_REVIEW').length;
-      const doneT = tasks.filter((t) => t.status === 'DONE').length;
-      const blockT = tasks.filter((t) => t.status === 'BLOCKED').length;
+      const doneT = tasks.filter((t) => t.status === 'COMPLETED').length;
       setTaskStatusData([
         { name: 'Pending', value: todoT },
         { name: 'In Progress', value: ipT },
-        { name: 'In Review', value: revT },
         { name: 'Completed', value: doneT },
-        { name: 'Blocked', value: blockT },
       ]);
 
-      // 7. Task Category Distribution
+      // Chart 5: Task Category Distribution (uses t.stage)
       const catCount: Record<string, number> = {};
       tasks.forEach((t) => {
-        catCount[t.category] = (catCount[t.category] || 0) + 1;
+        const key = t.stage ?? 'UNKNOWN';
+        catCount[key] = (catCount[key] || 0) + 1;
       });
-      setTaskCategoryData(Object.keys(catCount).map((k) => ({ name: k, count: catCount[k] })));
+      setTaskCategoryData(
+        Object.keys(catCount).map((k) => ({ name: k, count: catCount[k] }))
+      );
 
-      // 8. Task Completion Trend
+      // Chart 6: Task Completion Trend
       setTaskCompletionData([
         { month: 'Jan', completed: 8 },
         { month: 'Feb', completed: 15 },
@@ -206,7 +242,7 @@ export default function ReportsPage() {
         { month: 'May', completed: 50 },
       ]);
 
-      // 9. Milestone Status Distribution
+      // Chart 7: Milestone Status Distribution
       const pendingM = milestones.filter((m) => m.status === 'PENDING').length;
       const ipM = milestones.filter((m) => m.status === 'IN_PROGRESS').length;
       const compM = milestones.filter((m) => m.status === 'COMPLETED').length;
@@ -218,7 +254,7 @@ export default function ReportsPage() {
         { name: 'Overdue', value: overM },
       ]);
 
-      // 10. Milestone Completion Trend
+      // Chart 8: Milestone Completion Trend
       setMilestoneCompletionData([
         { month: 'Jan', completed: 4 },
         { month: 'Feb', completed: 10 },
@@ -227,21 +263,27 @@ export default function ReportsPage() {
         { month: 'May', completed: 24 },
       ]);
 
-      // 11. Capacity by City
+      // Chart 9: Capacity by City (uses p.siteCity and p.capacityKw)
       const cityKW: Record<string, number> = {};
       projs.forEach((p) => {
-        cityKW[p.location] = (cityKW[p.location] || 0) + p.capacity;
+        const city = p.siteCity ?? 'Unknown';
+        cityKW[city] = (cityKW[city] || 0) + (p.capacityKw ?? 0);
       });
-      setCapacityCityData(Object.keys(cityKW).map((k) => ({ city: k, capacity: cityKW[k] })));
+      setCapacityCityData(
+        Object.keys(cityKW).map((k) => ({ city: k, capacity: cityKW[k] }))
+      );
 
-      // 12. Capacity by Project Type
+      // Chart 10: Capacity by Project Type (uses p.projectType and p.capacityKw)
       const typeKW: Record<string, number> = {};
       projs.forEach((p) => {
-        typeKW[p.projectType] = (typeKW[p.projectType] || 0) + p.capacity;
+        const type = p.projectType ?? 'UNKNOWN';
+        typeKW[type] = (typeKW[type] || 0) + (p.capacityKw ?? 0);
       });
-      setCapacityTypeData(Object.keys(typeKW).map((k) => ({ type: k, capacity: typeKW[k] })));
+      setCapacityTypeData(
+        Object.keys(typeKW).map((k) => ({ type: k, capacity: typeKW[k] }))
+      );
 
-      // 13. Team Performance
+      // Chart 11: Team Performance Analytics
       setTeamPerformanceData(
         users.slice(0, 8).map((u) => ({
           name: u.name.split(' ')[0],
@@ -250,7 +292,7 @@ export default function ReportsPage() {
         }))
       );
 
-      // 14. Lifecycle Analytics (Durations)
+      // Chart 12: Lifecycle Analytics (Durations)
       setLifecycleDurationData([
         { stage: 'Survey', days: 5 },
         { stage: 'Design', days: 12 },
@@ -260,8 +302,7 @@ export default function ReportsPage() {
         { stage: 'Grid Sync', days: 15 },
       ]);
 
-      // 15. Resource Analytics (Requirement 1)
-      // Engineers assigned by project
+      // Resource Analytics: Engineers Assigned by Project
       setEngineersAssignedData(
         projs.slice(0, 6).map((p, idx) => ({
           name: p.name.split(' ')[0],
@@ -269,16 +310,15 @@ export default function ReportsPage() {
         }))
       );
 
-      // Equipment allocation by project
+      // Resource Analytics: Equipment Allocation by Project
       setEquipmentAllocationData(
-        projs.slice(0, 6).map((p, idx) => ({
+        projs.slice(0, 6).map((p) => ({
           name: p.name.split(' ')[0],
-          panels: p.capacity > 50 ? 120 : 40,
-          inverters: p.capacity > 50 ? 4 : 1,
-          structures: p.capacity > 50 ? 12 : 3,
+          panels: (p.capacityKw ?? 0) > 50 ? 120 : 40,
+          inverters: (p.capacityKw ?? 0) > 50 ? 4 : 1,
+          structures: (p.capacityKw ?? 0) > 50 ? 12 : 3,
         }))
       );
-
     } catch (err) {
       console.error('Failed to compile reports data:', err);
     } finally {
@@ -308,7 +348,9 @@ export default function ReportsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Analytics Command Center</h1>
-          <p className="text-sm text-zinc-500">Live operational intelligence, approval bottlenecks, and resource utilization ratios</p>
+          <p className="text-sm text-zinc-500">
+            Live operational intelligence, approval bottlenecks, and resource utilization ratios
+          </p>
         </div>
 
         {/* Export Buttons */}
@@ -342,7 +384,6 @@ export default function ReportsPage() {
 
       {/* 10 CORE OPERATIONAL KPI CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {/* Projects cards */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-1">
           <span className="block font-bold text-zinc-400 uppercase tracking-wide text-[9px] flex items-center gap-1">
             <Briefcase className="h-3 w-3 text-zinc-400" />
@@ -371,8 +412,6 @@ export default function ReportsPage() {
           </span>
           <span className="text-2xl font-black text-rose-600">{kpi.delayedProjects}</span>
         </div>
-
-        {/* Utilization card */}
         <div className="rounded-xl border border-zinc-200 bg-teal-50/20 p-4 shadow-sm space-y-1 border-brand-300">
           <span className="block font-bold text-brand-700 uppercase tracking-wide text-[9px] flex items-center gap-1">
             <Sliders className="h-3 w-3 text-brand-600" />
@@ -381,7 +420,6 @@ export default function ReportsPage() {
           <span className="text-2xl font-black text-brand-850">{kpi.resourceUtilization}%</span>
         </div>
 
-        {/* Tasks cards */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-1">
           <span className="block font-bold text-zinc-400 uppercase tracking-wide text-[9px] flex items-center gap-1">
             <CheckSquare className="h-3 w-3 text-zinc-400" />
@@ -404,7 +442,6 @@ export default function ReportsPage() {
           <span className="text-2xl font-black text-rose-600">{kpi.overdueTasks}</span>
         </div>
 
-        {/* Milestones cards */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-1">
           <span className="block font-bold text-zinc-400 uppercase tracking-wide text-[9px] flex items-center gap-1">
             <Layers className="h-3 w-3 text-zinc-400" />
@@ -421,11 +458,15 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* APPROVAL WORKFLOW ANALYTICS BAR (Requirement 2) */}
+      {/* APPROVAL WORKFLOW ANALYTICS */}
       <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm space-y-4">
         <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-brand-700">Approval Workflow Performance</h3>
-          <p className="text-xs text-zinc-400 mt-0.5">Live sign-off states and average processing times for government approvals and design CADs</p>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-brand-700">
+            Approval Workflow Performance
+          </h3>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Live sign-off states and average processing times for government approvals and design CADs
+          </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -433,7 +474,6 @@ export default function ReportsPage() {
             <span className="block text-[9px] font-bold text-zinc-400 uppercase">Pending Review</span>
             <span className="text-xl font-extrabold text-zinc-700">{approvalStats.pending} Files</span>
           </div>
-
           <div className="rounded-lg border border-zinc-200 p-3 bg-emerald-50/10 space-y-1 border-emerald-250">
             <span className="block text-[9px] font-bold text-emerald-700 uppercase flex items-center gap-1">
               <ThumbsUp className="h-3 w-3 text-emerald-600" />
@@ -441,12 +481,10 @@ export default function ReportsPage() {
             </span>
             <span className="text-xl font-extrabold text-emerald-800">{approvalStats.approved} Files</span>
           </div>
-
           <div className="rounded-lg border border-zinc-200 p-3 bg-rose-50/10 space-y-1 border-rose-250">
             <span className="block text-[9px] font-bold text-rose-700 uppercase">Rejected</span>
             <span className="text-xl font-extrabold text-rose-800">{approvalStats.rejected} Files</span>
           </div>
-
           <div className="rounded-lg border border-zinc-200 p-3 bg-zinc-50/50 space-y-1">
             <span className="block text-[9px] font-bold text-zinc-400 uppercase">Average Turnaround</span>
             <span className="text-xl font-extrabold text-zinc-950">{approvalStats.avgTime} Minutes</span>
@@ -454,16 +492,26 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* 12 CHARTS CORE DISPLAY */}
+      {/* 14 CHARTS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
+
         {/* Chart 1: Project Status Distribution */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">1. Project Status Distribution</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            1. Project Status Distribution
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={projectStatusData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
+                <Pie
+                  data={projectStatusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={80}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
                   {projectStatusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -477,11 +525,21 @@ export default function ReportsPage() {
 
         {/* Chart 2: Project Health Distribution */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">2. Project Health Distribution</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            2. Project Health Distribution
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={projectHealthData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
+                <Pie
+                  data={projectHealthData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={80}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
                   {projectHealthData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -495,15 +553,26 @@ export default function ReportsPage() {
 
         {/* Chart 3: Project Completion Trend */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">3. Project Completion Trend</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            3. Project Completion Trend
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <RechartsLineChart data={projectCompletionData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <RechartsLineChart
+                data={projectCompletionData}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="completed" stroke="#0f766e" strokeWidth={3} activeDot={{ r: 8 }} />
+                <Line
+                  type="monotone"
+                  dataKey="completed"
+                  stroke="#0f766e"
+                  strokeWidth={3}
+                  activeDot={{ r: 8 }}
+                />
               </RechartsLineChart>
             </ResponsiveContainer>
           </div>
@@ -511,8 +580,10 @@ export default function ReportsPage() {
 
         {/* Chart 4: Task Status Distribution */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">4. Task Status Distribution</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            4. Task Status Distribution
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={taskStatusData} cx="50%" cy="50%" outerRadius={80} label dataKey="value">
@@ -528,8 +599,10 @@ export default function ReportsPage() {
 
         {/* Chart 5: Task Category Distribution */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">5. Task Category Distribution</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            5. Task Category Distribution
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={taskCategoryData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -544,8 +617,10 @@ export default function ReportsPage() {
 
         {/* Chart 6: Task Completion Trend */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">6. Task Completion Trend</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            6. Task Completion Trend
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsLineChart data={taskCompletionData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -560,11 +635,20 @@ export default function ReportsPage() {
 
         {/* Chart 7: Milestone Status Distribution */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">7. Milestone Status Distribution</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            7. Milestone Status Distribution
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={milestoneStatusData} cx="50%" cy="50%" outerRadius={80} label dataKey="value">
+                <Pie
+                  data={milestoneStatusData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  label
+                  dataKey="value"
+                >
                   {milestoneStatusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS.neutral[index % COLORS.neutral.length]} />
                   ))}
@@ -577,8 +661,10 @@ export default function ReportsPage() {
 
         {/* Chart 8: Milestone Completion Trend */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">8. Milestone Completion Trend</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            8. Milestone Completion Trend
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsLineChart data={milestoneCompletionData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -591,10 +677,12 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Chart 9: Capacity By City */}
+        {/* Chart 9: Capacity by City */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">9. Capacity (kW) By City</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            9. Capacity (kW) By City
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={capacityCityData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -607,10 +695,12 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Chart 10: Capacity By Project Type */}
+        {/* Chart 10: Capacity by Project Type */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">10. Capacity (kW) By Project Type</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            10. Capacity (kW) By Project Type
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={capacityTypeData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -625,8 +715,10 @@ export default function ReportsPage() {
 
         {/* Chart 11: Team Performance Analytics */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">11. Team Performance Analytics (Completion Rate %)</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            11. Team Performance Analytics (Completion Rate %)
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={teamPerformanceData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -641,8 +733,10 @@ export default function ReportsPage() {
 
         {/* Chart 12: Lifecycle Analytics */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">12. Lifecycle Analytics (Avg Stage Duration)</h4>
-          <div className="h-64">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550">
+            12. Lifecycle Analytics (Avg Stage Duration)
+          </h4>
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={lifecycleDurationData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -655,13 +749,13 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* RESOURCE ANALYTICS BAR (Requirement 1: Engineers Assigned by Project) */}
+        {/* Resource Analytics: Engineers Assigned by Project */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550 flex items-center gap-1.5">
             <Cpu className="h-4 w-4 text-brand-650" />
             Engineers Assigned by Project
           </h4>
-          <div className="h-64">
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={engineersAssignedData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -674,13 +768,13 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* RESOURCE ANALYTICS BAR (Requirement 1: Equipment Allocation by Project) */}
+        {/* Resource Analytics: Equipment Allocation by Project */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-550 flex items-center gap-1.5">
             <TrendingUp className="h-4 w-4 text-brand-650" />
             Equipment Allocation by Project
           </h4>
-          <div className="h-64">
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsBarChart data={equipmentAllocationData}>
                 <CartesianGrid strokeDasharray="3 3" />
