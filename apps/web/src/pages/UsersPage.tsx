@@ -129,10 +129,10 @@ export default function UsersPage() {
             >
               <option value="ALL">All Roles</option>
               <option value="ADMIN">Admin</option>
-              <option value="PROJECT_MANAGER">Project Manager</option>
-              <option value="SITE_SUPERVISOR">Site Supervisor</option>
-              <option value="ENGINEER">Engineer</option>
-              <option value="TEAM_MEMBER">Team Member</option>
+              <option value="PM">Project Manager</option>
+              <option value="SUPERVISOR">Site Supervisor</option>
+              <option value="DESIGN">Engineer</option>
+              <option value="MEMBER">Team Member</option>
             </select>
           </div>
 

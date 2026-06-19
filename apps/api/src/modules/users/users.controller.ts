@@ -18,7 +18,9 @@ import {
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { SystemRole } from '@nature-tek/database';
 
 import { UsersService } from './users.service';
 
@@ -51,6 +53,7 @@ export class UsersController {
   }
 
   @Post()
+  @Roles(SystemRole.ADMIN)
   create(
     @Body()
     body: any,
@@ -79,6 +82,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @Roles(SystemRole.ADMIN)
   update(
     @Param('id')
     id: string,
@@ -97,6 +101,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @Roles(SystemRole.ADMIN)
   delete(
     @Param('id')
     id: string,
@@ -106,6 +111,25 @@ export class UsersController {
   ) {
     return this.usersService.delete(
       id,
+      user
+    );
+  }
+
+  @Post(':id/reset-password')
+  @Roles(SystemRole.ADMIN)
+  resetPassword(
+    @Param('id')
+    id: string,
+
+    @Body()
+    body: { password?: string },
+
+    @CurrentUser()
+    user: JwtPayload
+  ) {
+    return this.usersService.resetPassword(
+      id,
+      body,
       user
     );
   }

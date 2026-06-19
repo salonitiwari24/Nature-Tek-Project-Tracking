@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -43,17 +45,29 @@ export class ProjectsService {
         }),
       };
 
-    if (
-      user.role !==
-        SystemRole.ADMIN &&
-      user.role !==
-        SystemRole.PM
-    ) {
-      where.members = {
-        some: {
-          userId: user.sub,
+    if (user.role !== SystemRole.ADMIN) {
+      where.OR = [
+        {
+          pmId: user.sub,
         },
-      };
+        {
+          supervisorId: user.sub,
+        },
+        {
+          members: {
+            some: {
+              userId: user.sub,
+            },
+          },
+        },
+        {
+          tasks: {
+            some: {
+              assigneeId: user.sub,
+            },
+          },
+        },
+      ];
     }
 
     const projects =
@@ -279,11 +293,10 @@ export class ProjectsService {
                   input.projectType,
 
                 pmId:
-                  input.pmId ??
-                  (user.role ===
+                  user.role ===
                   SystemRole.PM
                     ? user.sub
-                    : undefined),
+                    : input.pmId,
 
                 supervisorId:
                   input.supervisorId,
@@ -317,6 +330,25 @@ export class ProjectsService {
                   project.pmId,
                 projectRole:
                   'PM',
+              },
+            }
+          );
+        }
+
+        if (
+          project.supervisorId &&
+          project.supervisorId !==
+            project.pmId
+        ) {
+          await tx.projectMember.create(
+            {
+              data: {
+                projectId:
+                  project.id,
+                userId:
+                  project.supervisorId,
+                projectRole:
+                  'SUPERVISOR',
               },
             }
           );
@@ -393,7 +425,49 @@ export class ProjectsService {
       );
     }
 
-    return this.prisma.project.update(
+    if (
+      user.role !== SystemRole.ADMIN &&
+      (user.role !== SystemRole.PM ||
+        existing.pmId !== user.sub)
+    ) {
+      throw new ForbiddenException(
+        'You can only manage your own projects'
+      );
+    }
+
+    const markingComplete =
+      body.status === 'COMPLETED' ||
+      body.currentStage === 'COMPLETED';
+
+    if (markingComplete) {
+      const milestones =
+        await this.prisma.milestone.findMany(
+          {
+            where: {
+              projectId: id,
+            },
+          }
+        );
+
+      const allCompleted =
+        milestones.length > 0 &&
+        milestones.every(
+          (m) =>
+            m.status ===
+            'COMPLETED'
+        );
+
+      if (!allCompleted) {
+        throw new BadRequestException(
+          'All milestones must be completed before the project can be marked complete'
+        );
+      }
+    }
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const updated =
+          await tx.project.update(
       {
         where: { id },
 
@@ -438,17 +512,28 @@ export class ProjectsService {
             body.projectType ??
             existing.projectType,
 
+          pmId:
+            body.pmId ??
+            existing.pmId,
+
+          supervisorId:
+            body.supervisorId ??
+            existing.supervisorId,
+
           status:
-            body.status ??
-            existing.status,
+            markingComplete
+              ? 'COMPLETED'
+              : (body.status ??
+                existing.status),
 
           currentStage:
-            body.currentStage ??
-            existing.currentStage,
+            markingComplete
+              ? 'COMPLETED'
+              : (body.currentStage ??
+                existing.currentStage),
 
           actualEnd:
-            body.status ===
-            'COMPLETED'
+            markingComplete
               ? new Date()
               : existing.actualEnd,
         },
@@ -475,6 +560,60 @@ export class ProjectsService {
           },
         },
       }
+          );
+
+        if (body.pmId) {
+          await tx.projectMember.upsert(
+            {
+              where: {
+                projectId_userId: {
+                  projectId: id,
+                  userId:
+                    body.pmId,
+                },
+              },
+              create: {
+                projectId: id,
+                userId:
+                  body.pmId,
+                projectRole:
+                  'PM',
+              },
+              update: {
+                projectRole:
+                  'PM',
+              },
+            }
+          );
+        }
+
+        if (body.supervisorId) {
+          await tx.projectMember.upsert(
+            {
+              where: {
+                projectId_userId: {
+                  projectId: id,
+                  userId:
+                    body.supervisorId,
+                },
+              },
+              create: {
+                projectId: id,
+                userId:
+                  body.supervisorId,
+                projectRole:
+                  'SUPERVISOR',
+              },
+              update: {
+                projectRole:
+                  'SUPERVISOR',
+              },
+            }
+          );
+        }
+
+        return updated;
+      }
     );
   }
 
@@ -482,36 +621,49 @@ export class ProjectsService {
     projectId: string,
     user: JwtPayload
   ) {
-    const elevated: SystemRole[] =
-      [
-        SystemRole.ADMIN,
-        SystemRole.PM,
-        SystemRole.EXEC,
-      ];
-
     if (
-      elevated.includes(
-        user.role as SystemRole
-      )
+      user.role ===
+      SystemRole.ADMIN
     ) {
       return;
     }
 
-    const member =
-      await this.prisma.projectMember.findUnique(
+    const project =
+      await this.prisma.project.findFirst(
         {
           where: {
-            projectId_userId:
+            id: projectId,
+            orgId: user.orgId,
+            deletedAt: null,
+            OR: [
               {
-                projectId,
-                userId:
-                  user.sub,
+                pmId: user.sub,
               },
+              {
+                supervisorId: user.sub,
+              },
+              {
+                members: {
+                  some: {
+                    userId:
+                      user.sub,
+                  },
+                },
+              },
+              {
+                tasks: {
+                  some: {
+                    assigneeId:
+                      user.sub,
+                  },
+                },
+              },
+            ],
           },
         }
       );
 
-    if (!member) {
+    if (!project) {
       throw new NotFoundException(
         'Project not found'
       );

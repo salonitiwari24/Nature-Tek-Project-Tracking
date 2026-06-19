@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { Save, X } from 'lucide-react';
 import { ProjectDetail } from '../../services/projectService';
+import { UserDetail, UserService } from '../../services/userService';
 
 // Zod form validation schema
 const projectFormSchema = z
@@ -16,8 +17,8 @@ const projectFormSchema = z
     siteAddress: z.string().min(5, 'Site address must be at least 5 characters'),
     siteCity: z.string().min(2, 'Site city is required'),
     siteState: z.string().min(2, 'Site state is required (e.g. MH)'),
-    pmName: z.string().min(2, 'Project Manager name is required'),
-    pmEmail: z.string().email('Please enter a valid PM email address'),
+    pmId: z.string().min(1, 'Project Manager is required'),
+    supervisorId: z.string().min(1, 'Supervisor is required'),
     targetStart: z.string().min(10, 'Start date is required'),
     targetEnd: z.string().min(10, 'Expected end date is required'),
     budget: z.number({ invalid_type_error: 'Budget must be a number' }).positive('Budget must be greater than 0'),
@@ -48,8 +49,8 @@ export function ProjectForm({ initialData = null, onSubmit, onCancel }: ProjectF
     siteAddress: initialData?.siteAddress ?? '',
     siteCity: initialData?.siteCity ?? '',
     siteState: initialData?.siteState ?? 'MH',
-    pmName: initialData?.pmName ?? '',
-    pmEmail: initialData?.pmEmail ?? '',
+    pmId: initialData?.pmId ?? '',
+    supervisorId: initialData?.supervisorId ?? '',
     targetStart: initialData?.targetStart ?? '',
     targetEnd: initialData?.targetEnd ?? '',
     budget: initialData?.budget ?? 0,
@@ -57,6 +58,31 @@ export function ProjectForm({ initialData = null, onSubmit, onCancel }: ProjectF
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [projectManagers, setProjectManagers] = useState<UserDetail[]>([]);
+  const [supervisors, setSupervisors] = useState<UserDetail[]>([]);
+  const [isLoadingAssignees, setIsLoadingAssignees] = useState<boolean>(true);
+
+  useEffect(() => {
+    const loadAssignees = async () => {
+      setIsLoadingAssignees(true);
+
+      try {
+        const [pmData, supervisorData] = await Promise.all([
+          UserService.getPMs(),
+          UserService.getSupervisors(),
+        ]);
+
+        setProjectManagers(pmData.filter((u) => u.isActive));
+        setSupervisors(supervisorData.filter((u) => u.isActive));
+      } catch (err) {
+        console.error('Failed to load project assignees:', err);
+      } finally {
+        setIsLoadingAssignees(false);
+      }
+    };
+
+    loadAssignees();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -306,35 +332,47 @@ export function ProjectForm({ initialData = null, onSubmit, onCancel }: ProjectF
           </div>
 
           <div>
-            <label htmlFor="pmName" className="block text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1.5">Project Manager Name <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              id="pmName"
-              name="pmName"
-              value={formData.pmName}
+            <label htmlFor="pmId" className="block text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1.5">Project Manager <span className="text-red-500">*</span></label>
+            <select
+              id="pmId"
+              name="pmId"
+              value={formData.pmId}
               onChange={handleChange}
-              placeholder="e.g. Amit Sharma"
-              className={`w-full rounded-lg border px-3 py-2 text-sm shadow-sm outline-none transition-colors ${
-                errors.pmName ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' : 'border-zinc-250 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20'
+              disabled={isLoadingAssignees}
+              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm outline-none transition-colors ${
+                errors.pmId ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' : 'border-zinc-250 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20'
               }`}
-            />
-            {errors.pmName && <p className="mt-1 text-xs font-semibold text-red-500">{errors.pmName}</p>}
+            >
+              <option value="">{isLoadingAssignees ? 'Loading project managers...' : 'Select project manager'}</option>
+              {projectManagers.map((pm) => (
+                <option key={pm.id} value={pm.id}>
+                  {pm.firstName} {pm.lastName}
+                </option>
+              ))}
+            </select>
+            {errors.pmId && <p className="mt-1 text-xs font-semibold text-red-500">{errors.pmId}</p>}
           </div>
 
           <div>
-            <label htmlFor="pmEmail" className="block text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1.5">Project Manager Email <span className="text-red-500">*</span></label>
-            <input
-              type="email"
-              id="pmEmail"
-              name="pmEmail"
-              value={formData.pmEmail}
+            <label htmlFor="supervisorId" className="block text-xs font-bold uppercase tracking-wide text-zinc-600 mb-1.5">Supervisor <span className="text-red-500">*</span></label>
+            <select
+              id="supervisorId"
+              name="supervisorId"
+              value={formData.supervisorId}
               onChange={handleChange}
-              placeholder="e.g. amit.sharma@naturetek.com"
-              className={`w-full rounded-lg border px-3 py-2 text-sm shadow-sm outline-none transition-colors ${
-                errors.pmEmail ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' : 'border-zinc-250 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20'
+              disabled={isLoadingAssignees}
+              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm outline-none transition-colors ${
+                errors.supervisorId ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' : 'border-zinc-250 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20'
               }`}
-            />
-            {errors.pmEmail && <p className="mt-1 text-xs font-semibold text-red-500">{errors.pmEmail}</p>}
+            >
+              <option value="">{isLoadingAssignees ? 'Loading supervisors...' : 'Select supervisor'}</option>
+              {supervisors.map((supervisor) => (
+                <option key={supervisor.id} value={supervisor.id}>
+                  {supervisor.firstName} {supervisor.lastName}
+                </option>
+              ))}
+            </select>
+            {errors.supervisorId && <p className="mt-1 text-xs font-semibold text-red-500">{errors.supervisorId}</p>}
           </div>
         </div>
       </div>

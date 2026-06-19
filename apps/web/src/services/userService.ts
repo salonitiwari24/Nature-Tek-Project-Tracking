@@ -284,7 +284,21 @@ export class UserService {
         user.createdAt,
     };
   }
+  static async getPMs(): Promise<UserDetail[]> {
+    const response = await this.getUsers({
+      role: 'PM',
+    });
 
+    return response.data;
+  }
+
+  static async getSupervisors(): Promise<UserDetail[]> {
+    const response = await this.getUsers({
+      role: 'SUPERVISOR',
+    });
+
+    return response.data;
+  }
   static async deleteUser(
     id: string
   ): Promise<void> {
@@ -293,6 +307,23 @@ export class UserService {
       {
         method:
           'DELETE',
+      }
+    );
+  }
+
+  static async resetPassword(
+    id: string,
+    password?: string
+  ): Promise<{ success: boolean; temporaryPassword?: string }> {
+    return api<{ success: boolean; temporaryPassword?: string }>(
+      `/users/${id}/reset-password`,
+      {
+        method: 'POST',
+        body: JSON.stringify(
+          password
+            ? { password }
+            : {}
+        ),
       }
     );
   }

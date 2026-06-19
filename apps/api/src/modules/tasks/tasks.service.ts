@@ -1,8 +1,10 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
+import { Prisma, SystemRole } from '@nature-tek/database';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
@@ -23,9 +25,14 @@ export class TasksService {
   ) {
     return this.prisma.task.findMany({
       where: {
-        project: {
-          orgId: user.orgId,
-        },
+        AND: [
+          this.visibleTaskWhere(user),
+          {
+            project: {
+              orgId: user.orgId,
+            },
+          },
+        ],
 
         ...(query.search
           ? {
@@ -125,6 +132,11 @@ export class TasksService {
       );
     }
 
+    this.assertCanManageProject(
+      project,
+      user
+    );
+
     return this.prisma.task.create(
       {
         data: {
@@ -191,11 +203,17 @@ export class TasksService {
         {
           where: {
             id,
-
-            project: {
-              orgId:
-                user.orgId,
-            },
+            AND: [
+              this.visibleTaskWhere(
+                user
+              ),
+              {
+                project: {
+                  orgId:
+                    user.orgId,
+                },
+              },
+            ],
           },
 
           include: {
@@ -232,6 +250,10 @@ export class TasksService {
                 user.orgId,
             },
           },
+
+          include: {
+            project: true,
+          },
         }
       );
 
@@ -240,6 +262,11 @@ export class TasksService {
         'Task not found'
       );
     }
+
+    this.assertCanUpdateTask(
+      task.project,
+      user
+    );
 
     return this.prisma.task.update(
       {
@@ -262,6 +289,9 @@ export class TasksService {
 
           priority:
             body.priority,
+
+          assigneeId:
+            body.assigneeId,
 
           dueAt:
             body.dueAt
@@ -308,6 +338,10 @@ export class TasksService {
                 user.orgId,
             },
           },
+
+          include: {
+            project: true,
+          },
         }
       );
 
@@ -316,6 +350,11 @@ export class TasksService {
         'Task not found'
       );
     }
+
+    this.assertCanManageProject(
+      task.project,
+      user
+    );
 
     await this.prisma.task.delete(
       {
@@ -328,5 +367,127 @@ export class TasksService {
     return {
       success: true,
     };
+  }
+
+  private visibleTaskWhere(
+    user: JwtPayload
+  ): Prisma.TaskWhereInput {
+    if (
+      user.role ===
+      SystemRole.ADMIN
+    ) {
+      return {};
+    }
+
+    if (
+      user.role ===
+      SystemRole.PM
+    ) {
+      return {
+        project: {
+          OR: [
+            {
+              pmId: user.sub,
+            },
+            {
+              members: {
+                some: {
+                  userId:
+                    user.sub,
+                },
+              },
+            },
+          ],
+        },
+      };
+    }
+
+    if (
+      user.role ===
+      SystemRole.SUPERVISOR
+    ) {
+      return {
+        project: {
+          OR: [
+            {
+              supervisorId:
+                user.sub,
+            },
+            {
+              members: {
+                some: {
+                  userId:
+                    user.sub,
+                },
+              },
+            },
+          ],
+        },
+      };
+    }
+
+    return {
+      assigneeId: user.sub,
+    };
+  }
+
+  private assertCanManageProject(
+    project: { pmId: string | null },
+    user: JwtPayload
+  ) {
+    if (
+      user.role ===
+      SystemRole.ADMIN
+    ) {
+      return;
+    }
+
+    if (
+      user.role ===
+        SystemRole.PM &&
+      project.pmId === user.sub
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'You can only manage your own project work'
+    );
+  }
+
+  private assertCanUpdateTask(
+    project: {
+      pmId: string | null;
+      supervisorId: string | null;
+    },
+    user: JwtPayload
+  ) {
+    if (
+      user.role ===
+      SystemRole.ADMIN
+    ) {
+      return;
+    }
+
+    if (
+      user.role ===
+        SystemRole.PM &&
+      project.pmId === user.sub
+    ) {
+      return;
+    }
+
+    if (
+      user.role ===
+        SystemRole.SUPERVISOR &&
+      project.supervisorId ===
+        user.sub
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'You are not allowed to update this task'
+    );
   }
 }

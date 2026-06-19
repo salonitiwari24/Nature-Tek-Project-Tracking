@@ -14,18 +14,18 @@ export function UserCard({ user }: UserCardProps) {
       {/* Header ID & Status */}
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-[10px] font-bold text-zinc-400">{user.id}</span>
-        <UserStatusBadge type="status" value={user.status} />
+        <UserStatusBadge type="status" value={user.isActive ? 'ACTIVE' : 'SUSPENDED'} />
       </div>
 
       {/* Profile Details */}
       <div className="mt-4 flex items-center gap-3">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 border border-brand-200 text-brand-700 font-extrabold text-sm uppercase">
-          {user.name.split(' ').map((n) => n[0]).join('')}
+          {[user.firstName, user.lastName].map((n) => n[0]).join('')}
         </div>
         <div className="min-w-0">
           <h4 className="text-sm font-extrabold text-zinc-950 truncate">
             <Link to={`/users/${user.id}`} className="hover:underline hover:text-brand-700">
-              {user.name}
+              {user.firstName} {user.lastName}
             </Link>
           </h4>
           <span className="mt-1 block">
@@ -45,29 +45,27 @@ export function UserCard({ user }: UserCardProps) {
 
         <div className="flex items-center gap-1.5">
           <Briefcase className="h-3.5 w-3.5 text-zinc-400" />
-          <span>Projects: <strong className="text-zinc-800">{user.assignedProjects.length} Active</strong></span>
+          <span>Role: <strong className="text-zinc-800">{user.role}</strong></span>
         </div>
 
         {/* Completion rate (Requirement 3) */}
         <div className="flex items-center gap-1.5">
           <div className="h-3.5 w-3.5 rounded-full border-2 border-zinc-350 flex items-center justify-center text-[7px] font-extrabold text-zinc-450">%</div>
           <span>
-            Completion Rate:{' '}
+            Account:{' '}
             <strong className={`font-extrabold ${
-              user.performance.completionRate >= 85
+              user.isActive
                 ? 'text-emerald-700'
-                : user.performance.completionRate >= 70
-                  ? 'text-amber-700'
-                  : 'text-rose-700'
+                : 'text-rose-700'
             }`}>
-              {user.performance.completionRate}%
+              {user.isActive ? 'Active' : 'Suspended'}
             </strong>
           </span>
         </div>
 
         <div className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-          <span>Last login: <strong className="text-zinc-800">{user.lastActivity.substring(0, 10)}</strong></span>
+          <span>Created: <strong className="text-zinc-800">{user.createdAt?.substring(0, 10) ?? '-'}</strong></span>
         </div>
       </div>
 

@@ -1,8 +1,10 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
+import { Prisma, SystemRole } from '@nature-tek/database';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -23,10 +25,17 @@ export class MilestonesService {
     return this.prisma.milestone.findMany(
       {
         where: {
-          project: {
-            orgId:
-              user.orgId,
-          },
+          AND: [
+            this.visibleMilestoneWhere(
+              user
+            ),
+            {
+              project: {
+                orgId:
+                  user.orgId,
+              },
+            },
+          ],
 
           ...(query.projectId
             ? {
@@ -86,6 +95,11 @@ export class MilestonesService {
       );
     }
 
+    this.assertCanManageProject(
+      project,
+      user
+    );
+
     return this.prisma.milestone.create(
       {
         data: {
@@ -135,6 +149,11 @@ export class MilestonesService {
         {
           where: {
             id,
+            AND: [
+              this.visibleMilestoneWhere(
+                user
+              ),
+            ],
 
             project: {
               orgId:
@@ -177,6 +196,10 @@ export class MilestonesService {
               user.orgId,
           },
         },
+
+        include: {
+          project: true,
+        },
       }
     );
 
@@ -185,6 +208,11 @@ export class MilestonesService {
       'Milestone not found'
     );
   }
+
+  this.assertCanUpdateMilestone(
+    milestone.project,
+    user
+  );
 
   // UPDATE MILESTONE
   const updatedMilestone =
@@ -293,6 +321,10 @@ export class MilestonesService {
                 user.orgId,
             },
           },
+
+          include: {
+            project: true,
+          },
         }
       );
 
@@ -303,6 +335,11 @@ export class MilestonesService {
         'Milestone not found'
       );
     }
+
+    this.assertCanManageProject(
+      milestone.project,
+      user
+    );
 
     await this.prisma.milestone.delete(
       {
@@ -315,5 +352,134 @@ export class MilestonesService {
     return {
       success: true,
     };
+  }
+
+  private visibleMilestoneWhere(
+    user: JwtPayload
+  ): Prisma.MilestoneWhereInput {
+    if (
+      user.role ===
+      SystemRole.ADMIN
+    ) {
+      return {};
+    }
+
+    if (
+      user.role ===
+      SystemRole.PM
+    ) {
+      return {
+        project: {
+          OR: [
+            {
+              pmId: user.sub,
+            },
+            {
+              members: {
+                some: {
+                  userId:
+                    user.sub,
+                },
+              },
+            },
+          ],
+        },
+      };
+    }
+
+    if (
+      user.role ===
+      SystemRole.SUPERVISOR
+    ) {
+      return {
+        project: {
+          OR: [
+            {
+              supervisorId:
+                user.sub,
+            },
+            {
+              members: {
+                some: {
+                  userId:
+                    user.sub,
+                },
+              },
+            },
+          ],
+        },
+      };
+    }
+
+    return {
+      project: {
+        tasks: {
+          some: {
+            assigneeId:
+              user.sub,
+          },
+        },
+      },
+    };
+  }
+
+  private assertCanManageProject(
+    project: { pmId: string | null },
+    user: JwtPayload
+  ) {
+    if (
+      user.role ===
+      SystemRole.ADMIN
+    ) {
+      return;
+    }
+
+    if (
+      user.role ===
+        SystemRole.PM &&
+      project.pmId === user.sub
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'You can only manage milestones for your own projects'
+    );
+  }
+
+  private assertCanUpdateMilestone(
+    project: {
+      pmId: string | null;
+      supervisorId: string | null;
+    },
+    user: JwtPayload
+  ) {
+    if (
+      user.role ===
+      SystemRole.ADMIN
+    ) {
+      return;
+    }
+
+    if (
+      user.role ===
+        SystemRole.PM &&
+      project.pmId === user.sub
+    ) {
+      return;
+    }
+
+    if (
+      user.role ===
+        SystemRole.SUPERVISOR &&
+      project.supervisorId ===
+        user.sub
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'You are not allowed to update this milestone'
+    );
   }
 }

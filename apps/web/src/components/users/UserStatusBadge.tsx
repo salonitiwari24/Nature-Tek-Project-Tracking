@@ -1,4 +1,4 @@
-import { UserRole } from '../../mocks/userMockData';
+import { UserRole } from '../../services/userService';
 
 interface UserStatusBadgeProps {
   type: 'role' | 'status';
@@ -33,19 +33,20 @@ export function UserStatusBadge({ type, value }: UserStatusBadgeProps) {
             Admin
           </span>
         );
-      case 'PROJECT_MANAGER':
+      case 'PM':
         return (
           <span className="inline-flex rounded bg-brand-50 border border-brand-200 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-brand-700 tracking-wider">
             Project Mgr
           </span>
         );
-      case 'SITE_SUPERVISOR':
+      case 'SUPERVISOR':
         return (
           <span className="inline-flex rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-amber-700 tracking-wider">
             Supervisor
           </span>
         );
-      case 'ENGINEER':
+      case 'DESIGN':
+      case 'SERVICE':
         return (
           <span className="inline-flex rounded bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-indigo-700 tracking-wider">
             Engineer

@@ -15,6 +15,7 @@ import {
   Edit2,
   Mail,
   Calendar,
+  KeyRound,
 } from 'lucide-react';
 
 import {
@@ -94,6 +95,40 @@ export default function UserDetailsPage() {
     ).toLocaleDateString();
   };
 
+  const handleResetPassword =
+    async () => {
+      if (!user)
+        return;
+
+      const confirmed =
+        window.confirm(
+          `Reset password for ${user.firstName} ${user.lastName}?`
+        );
+
+      if (!confirmed)
+        return;
+
+      try {
+        const result =
+          await UserService.resetPassword(
+            user.id
+          );
+
+        alert(
+          `Password reset successfully. Temporary password: ${result.temporaryPassword ?? 'Password@123'}`
+        );
+      } catch (err) {
+        console.error(
+          'Failed to reset password:',
+          err
+        );
+
+        alert(
+          'Failed to reset password.'
+        );
+      }
+    };
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center rounded-xl border border-zinc-250 bg-white shadow-sm">
@@ -161,13 +196,24 @@ export default function UserDetailsPage() {
           </div>
         </div>
 
-        <Link
-          to={`/users/${user.id}/edit`}
-          className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-zinc-50"
-        >
-          <Edit2 className="h-4 w-4" />
-          Edit User
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleResetPassword}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-zinc-50"
+          >
+            <KeyRound className="h-4 w-4" />
+            Reset Password
+          </button>
+
+          <Link
+            to={`/users/${user.id}/edit`}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-zinc-50"
+          >
+            <Edit2 className="h-4 w-4" />
+            Edit User
+          </Link>
+        </div>
       </div>
 
       {/* INFO CARD */}

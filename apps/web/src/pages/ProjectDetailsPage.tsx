@@ -236,7 +236,7 @@ export function ProjectDetailsPage() {
         <div className="lg:col-span-2 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Project parameters summary</h3>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
             <div className="space-y-1">
               <span className="flex items-center gap-1 text-zinc-400 font-bold uppercase tracking-wide">
                 <Settings className="h-3.5 w-3.5" />
@@ -258,12 +258,22 @@ export function ProjectDetailsPage() {
             <div className="space-y-1">
               <span className="flex items-center gap-1 text-zinc-400 font-bold uppercase tracking-wide">
                 <User className="h-3.5 w-3.5" />
-                Manager
+                Project Manager
               </span>
-              {/* FIX 2: project.pmName → project.pm object from live API */}
               <p className="font-bold text-zinc-950 text-sm truncate">
                 {project.pm
                   ? `${project.pm.firstName} ${project.pm.lastName}`
+                  : 'Unassigned'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="flex items-center gap-1 text-zinc-400 font-bold uppercase tracking-wide">
+                <Users className="h-3.5 w-3.5" />
+                Supervisor
+              </span>
+              <p className="font-bold text-zinc-950 text-sm truncate">
+                {project.supervisor
+                  ? `${project.supervisor.firstName} ${project.supervisor.lastName}`
                   : 'Unassigned'}
               </p>
             </div>

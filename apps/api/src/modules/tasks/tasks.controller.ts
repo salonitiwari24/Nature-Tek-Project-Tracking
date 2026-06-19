@@ -17,8 +17,10 @@ import {
 
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { SystemRole } from '@nature-tek/database';
 
 import { TasksService } from './tasks.service';
 
@@ -63,6 +65,7 @@ export class TasksController {
   }
 
   @Post()
+  @Roles(SystemRole.ADMIN, SystemRole.PM)
   create(
     @Body() body: any,
 
@@ -90,6 +93,7 @@ export class TasksController {
   }
 
   @Patch(':id')
+  @Roles(SystemRole.ADMIN, SystemRole.PM, SystemRole.SUPERVISOR)
   update(
     @Param('id')
     id: string,
@@ -107,6 +111,7 @@ export class TasksController {
   }
 
   @Delete(':id')
+  @Roles(SystemRole.ADMIN, SystemRole.PM)
   delete(
     @Param('id')
     id: string,

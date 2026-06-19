@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -87,7 +88,7 @@ export class UsersService {
       );
 
     if (existing) {
-      throw new Error(
+      throw new BadRequestException(
         'User already exists with this email'
       );
     }
@@ -233,28 +234,21 @@ export class UsersService {
       );
     }
 
+    const data: any = {};
+
+    if (body.firstName !== undefined) data.firstName = body.firstName;
+    if (body.lastName !== undefined) data.lastName = body.lastName;
+    if (body.email !== undefined) data.email = body.email;
+    if (body.role !== undefined) data.role = body.role;
+    if (body.isActive !== undefined) data.isActive = body.isActive;
+
     return this.prisma.user.update(
       {
         where: {
           id,
         },
 
-        data: {
-          firstName:
-            body.firstName,
-
-          lastName:
-            body.lastName,
-
-          email:
-            body.email,
-
-          role:
-            body.role,
-
-          isActive:
-            body.isActive,
-        },
+        data,
 
         select: {
           id: true,
@@ -324,6 +318,59 @@ export class UsersService {
 
     return {
       success: true,
+    };
+  }
+
+  async resetPassword(
+    id: string,
+    body: { password?: string },
+    user: JwtPayload
+  ) {
+    const existing =
+      await this.prisma.user.findFirst(
+        {
+          where: {
+            id,
+            orgId: user.orgId,
+            deletedAt: null,
+          },
+        }
+      );
+
+    if (!existing) {
+      throw new NotFoundException(
+        'User not found'
+      );
+    }
+
+    const password =
+      body.password ??
+      'Password@123';
+
+    const passwordHash =
+      await bcrypt.hash(
+        password,
+        10
+      );
+
+    await this.prisma.user.update(
+      {
+        where: {
+          id,
+        },
+
+        data: {
+          passwordHash,
+        },
+      }
+    );
+
+    return {
+      success: true,
+      temporaryPassword:
+        body.password
+          ? undefined
+          : password,
     };
   }
 }

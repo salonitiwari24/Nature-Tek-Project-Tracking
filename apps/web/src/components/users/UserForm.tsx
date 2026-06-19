@@ -308,7 +308,13 @@ export function UserForm({
                 Supervisor
               </option>
 
-              <option value="ENGINEER">
+              <option value="SERVICE">
+                Field
+                Engineer
+              </option>
+
+              <option value="DESIGN">
+                Design
                 Engineer
               </option>
 
