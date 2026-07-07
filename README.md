@@ -343,18 +343,4 @@ backend/
 docs/
 ```
 
----
 
-## Screenshots
-
-Add screenshots of:
-
-- Login Page
-- Dashboard
-- Project Management
-- Project Details
-- Milestone Management
-- Analytics Dashboard
-
----
-t is licensed under the MIT License.
