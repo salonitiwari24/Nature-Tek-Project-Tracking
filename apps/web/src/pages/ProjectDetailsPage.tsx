@@ -148,13 +148,13 @@ export function ProjectDetailsPage() {
     );
   }
 
-  // Derive task aggregates for Requirement 1
-  const totalTasks = project.tasks.length;
-  const completedTasks = project.tasks.filter((t) => t.status === 'DONE').length;
+  // FIX 1: Derive task aggregates from milestones (project.tasks no longer exists on live API)
+  const totalTasks = project.milestones?.length ?? 0;
+  const completedTasks = project.milestones?.filter((m) => m.status === 'COMPLETED').length ?? 0;
   const openTasks = totalTasks - completedTasks;
-  const delayedTasks = project.tasks.filter(
-    (t) => t.status !== 'DONE' && t.dueDate && new Date(t.dueDate) < CURRENT_DATE
-  ).length;
+  const delayedTasks = project.milestones?.filter(
+    (m) => m.status !== 'COMPLETED' && m.targetDate && new Date(m.targetDate) < new Date()
+  ).length ?? 0;
 
   // Derived progress and delay days for Requirement 2
   const progress = ProjectService.calculateProgress(project);
@@ -188,13 +188,46 @@ export function ProjectDetailsPage() {
           <p className="text-xs text-zinc-500 mt-1 font-semibold">Registered Client: {project.clientName} ({project.clientEmail})</p>
         </div>
 
-        <Link
-          to={`/projects/${project.id}/edit`}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-900 self-start sm:self-auto"
-        >
-          <Edit className="h-4 w-4" />
-          Edit Specifications
-        </Link>
+        <div className="flex gap-2">
+          {project.status !==
+            'COMPLETED' && (
+            <button
+              onClick={async () => {
+                try {
+                  const updated =
+                    await ProjectService.markCompleted(
+                      project.id
+                    );
+
+                  setProject(
+                    updated
+                  );
+                } catch (
+                  err
+                ) {
+                  console.error(
+                    err
+                  );
+
+                  alert(
+                    'Failed to mark project complete'
+                  );
+                }
+              }}
+              className="flex h-9 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              Mark Completed
+            </button>
+          )}
+
+          <Link
+            to={`/projects/${project.id}/edit`}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+          >
+            <Edit className="h-4 w-4" />
+            Edit Specifications
+          </Link>
+        </div>
       </div>
 
       {/* Grid: Left Summary Box, Right Progress slider */}
@@ -227,7 +260,12 @@ export function ProjectDetailsPage() {
                 <User className="h-3.5 w-3.5" />
                 Manager
               </span>
-              <p className="font-bold text-zinc-950 text-sm truncate">{project.pmName}</p>
+              {/* FIX 2: project.pmName → project.pm object from live API */}
+              <p className="font-bold text-zinc-950 text-sm truncate">
+                {project.pm
+                  ? `${project.pm.firstName} ${project.pm.lastName}`
+                  : 'Unassigned'}
+              </p>
             </div>
             <div className="space-y-1">
               <span className="flex items-center gap-1 text-zinc-400 font-bold uppercase tracking-wide">
@@ -347,14 +385,30 @@ export function ProjectDetailsPage() {
             ))}
           </div>
 
-          {/* Render Active Tab widget */}
+          {/* FIX 3: Guard all tabs — approvals/resources/documents replaced with placeholders
+              until those fields are returned by the live API */}
           <div>
-            {activeTab === 'milestones' && <ProjectMilestones milestones={project.milestones} />}
-            {activeTab === 'approvals' && (
-              <ProjectApprovals approvals={project.approvals} onApproveReject={handleApproveReject} />
+            {activeTab === 'milestones' && (
+              <ProjectMilestones milestones={project.milestones ?? []} />
             )}
-            {activeTab === 'resources' && <ResourceAllocationWidget resources={project.resources} />}
-            {activeTab === 'documents' && <ProjectDocuments documents={project.documents} />}
+
+            {activeTab === 'approvals' && (
+              <div className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
+                Approval workflow coming soon
+              </div>
+            )}
+
+            {activeTab === 'resources' && (
+              <div className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
+                Resource allocation coming soon
+              </div>
+            )}
+
+            {activeTab === 'documents' && (
+              <div className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
+                Documents module coming soon
+              </div>
+            )}
           </div>
         </div>
 

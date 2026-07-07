@@ -24,7 +24,6 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
-  // Sidebar Category & search
   const [filters, setFilters] = useState<GetDocumentsFilters>({
     search: '',
     category: 'ALL',
@@ -34,10 +33,8 @@ export default function DocumentsPage() {
     limit: 10,
   });
 
-  // Slide-over selected doc
   const [selectedDoc, setSelectedDoc] = useState<DocumentDetail | null>(null);
 
-  // Upload Modal State
   const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
   const [projectsList, setProjectsList] = useState<{ id: string; name: string }[]>([]);
   const [uploadForm, setUploadForm] = useState({
@@ -57,7 +54,6 @@ export default function DocumentsPage() {
       setTotal(result.total);
       setTotalPages(result.totalPages);
 
-      // Re-read selected doc if open, to display new version history timeline
       if (selectedDoc) {
         const fresh = await DocumentService.getDocumentById(selectedDoc.id);
         if (fresh) {
@@ -75,18 +71,27 @@ export default function DocumentsPage() {
     loadDocuments();
   }, [filters]);
 
+  // FIXED: getProjects() returns an array directly, not response.data
   useEffect(() => {
     const loadProjectsList = async () => {
       try {
-        const response = await ProjectService.getProjects({ limit: 100 });
-        setProjectsList(response.data.map((p) => ({ id: p.id, name: p.name })));
-        if (response.data.length > 0) {
-          setUploadForm((prev) => ({ ...prev, projectId: response.data[0].id }));
+        const projects = await ProjectService.getProjects({ limit: 100 });
+
+        setProjectsList(
+          Array.isArray(projects)
+            ? projects.map((p) => ({ id: p.id, name: p.name }))
+            : []
+        );
+
+        if (Array.isArray(projects) && projects.length > 0) {
+          setUploadForm((prev) => ({ ...prev, projectId: projects[0].id }));
         }
       } catch (err) {
         console.error('Failed to load projects list:', err);
+        setProjectsList([]);
       }
     };
+
     loadProjectsList();
   }, []);
 
@@ -98,12 +103,11 @@ export default function DocumentsPage() {
     }));
   };
 
-  // APPROVAL ACTIONS (Requirement 2)
   const handleApprove = async (id: string) => {
     try {
       await DocumentService.updateDocument(id, {
         approvalStatus: 'APPROVED',
-        approvalTimeMinutes: Math.floor(Math.random() * 180) + 30, // 30 mins to 3 hours
+        approvalTimeMinutes: Math.floor(Math.random() * 180) + 30,
       });
       alert('Vault file approved cleanly and signed-off.');
       loadDocuments();
@@ -122,7 +126,6 @@ export default function DocumentsPage() {
     }
   };
 
-  // UPLOAD SIMULATION SUBMISSION
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadForm.name.trim() || !uploadForm.uploadedBy.trim()) {
@@ -142,11 +145,7 @@ export default function DocumentsPage() {
       });
       alert('New vault file uploaded cleanly and queued for inspector sign-off.');
       setUploadModalOpen(false);
-      setUploadForm((prev) => ({
-        ...prev,
-        name: '',
-        uploadedBy: '',
-      }));
+      setUploadForm((prev) => ({ ...prev, name: '', uploadedBy: '' }));
       loadDocuments();
     } catch (err) {
       console.error('Failed to simulate file upload:', err);
@@ -173,8 +172,8 @@ export default function DocumentsPage() {
 
       {/* SEARCH AND VIEW GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        
-        {/* Left Category Mappings Sidebar (7 Mapped categories) */}
+
+        {/* Left Category Sidebar */}
         <div className="lg:col-span-1 rounded-xl border border-zinc-250 bg-white p-4 shadow-sm space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-brand-700 flex items-center gap-1.5">
             <Folder className="h-4 w-4 text-brand-600" />
@@ -202,7 +201,7 @@ export default function DocumentsPage() {
           </nav>
         </div>
 
-        {/* Right Spreadsheet/Registry columns */}
+        {/* Right Content */}
         <div className="lg:col-span-3 space-y-6">
           {/* SEARCH & STATUS FILTER */}
           <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between flex-wrap">
@@ -229,7 +228,6 @@ export default function DocumentsPage() {
                 <option value="REJECTED">Rejected Only</option>
               </select>
 
-              {/* View Switches */}
               <select
                 value={filters.projectId}
                 onChange={(e) => handleFilterChange('projectId', e.target.value)}
@@ -243,7 +241,7 @@ export default function DocumentsPage() {
             </div>
           </div>
 
-          {/* SPREADSHEETS GRID */}
+          {/* DOCUMENTS TABLE / GRID */}
           {loading ? (
             <div className="flex h-64 items-center justify-center rounded-xl border border-zinc-250 bg-white shadow-sm">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-200 border-t-brand-650" />
@@ -273,7 +271,7 @@ export default function DocumentsPage() {
             </div>
           )}
 
-          {/* PAGINATION PANEL */}
+          {/* PAGINATION */}
           {!loading && total > 0 && (
             <div className="flex items-center justify-between text-xs text-zinc-500 pt-2 flex-wrap gap-2.5">
               <span>
@@ -304,11 +302,10 @@ export default function DocumentsPage() {
               </div>
             </div>
           )}
-
         </div>
       </div>
 
-      {/* MOCK UPLOAD DRAWER MODAL */}
+      {/* UPLOAD MODAL */}
       {uploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-xs">
           <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-2xl animate-fade-in overflow-hidden">
@@ -367,7 +364,6 @@ export default function DocumentsPage() {
                 </div>
               </div>
 
-              {/* Document Lifecycle Integration (Requirement 4) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border border-zinc-150 p-3 rounded-lg bg-zinc-50/50">
                 <div>
                   <label className="block font-bold text-zinc-600 uppercase tracking-wide mb-1">Related Project *</label>
@@ -433,7 +429,7 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* VIEW REVISION DETAILED SLIDE-OVER DRAWER */}
+      {/* DOCUMENT VIEWER SLIDE-OVER */}
       {selectedDoc && (
         <DocumentViewer
           document={selectedDoc}
@@ -441,7 +437,6 @@ export default function DocumentsPage() {
           onRefresh={loadDocuments}
         />
       )}
-
     </div>
   );
 }

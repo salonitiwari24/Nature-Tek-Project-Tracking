@@ -177,11 +177,11 @@ export default function MilestoneDetailsPage() {
                 <div className="h-2 w-2 rounded-full bg-brand-650" />
                 <span className="text-zinc-500">Related Solar Array:</span>
                 <Link
-                  to={`/projects/${milestone.projectId}`}
-                  className="font-bold text-zinc-800 hover:text-brand-750 hover:underline"
-                >
-                  {milestone.projectName}
-                </Link>
+  to={`/projects/${milestone.projectId}`}
+>
+  {milestone.project?.name ??
+    'Unknown Project'}
+</Link>
               </div>
               <span className="text-[10px] text-zinc-400 font-medium">Logged: {milestone.createdAt}</span>
             </div>

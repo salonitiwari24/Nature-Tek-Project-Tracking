@@ -47,6 +47,7 @@ export default function App() {
         <Route path="/users/:id/edit" element={<EditUserPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/tasks/:id/edit"element={<EditTaskPage />}/>
       </Route>
     </Routes>
   );

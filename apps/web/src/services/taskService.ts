@@ -1,252 +1,495 @@
-import { mockTasks, TaskDetail, TaskCategory, TaskStatus, TaskPriority } from '../mocks/taskMockData';
-import { ProjectService } from './projectService';
+import { api } from '../lib/api';
 
-// Simulated current today date: May 29, 2026
-const CURRENT_DATE = new Date('2026-05-29T13:48:55Z');
+export interface TaskDetail {
+  id: string;
+  title: string;
+  description?: string | null;
 
-let localTasks: TaskDetail[] = [...mockTasks];
+  projectId: string;
+  projectName?: string;
+
+  stage: string;
+
+  status:
+    | 'NOT_STARTED'
+    | 'IN_PROGRESS'
+    | 'IN_REVIEW'
+    | 'DONE'
+    | 'BLOCKED'
+    | 'CANCELLED';
+
+  priority:
+    | 'LOW'
+    | 'MEDIUM'
+    | 'HIGH'
+    | 'URGENT';
+
+  dueAt?: string | null;
+
+  assigneeId?: string | null;
+
+assignee?: {
+  id: string;
+  firstName: string;
+  lastName: string;
+};
+
+  createdAt?: string;
+}
 
 export interface GetTasksFilters {
   search?: string;
   projectId?: string;
   status?: string;
   priority?: string;
-  category?: string;
-  sortBy?: 'dueDate' | 'progress' | 'priority' | 'name';
-  sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
 }
 
-export interface PaginatedTasks {
-  data: TaskDetail[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+export interface CreateTaskInput {
+  title: string;
+  description?: string;
+
+  projectId: string;
+
+  stage: string;
+
+  priority:
+    | 'LOW'
+    | 'MEDIUM'
+    | 'HIGH'
+    | 'URGENT';
+
+  status:
+    | 'NOT_STARTED'
+    | 'IN_PROGRESS'
+    | 'IN_REVIEW'
+    | 'DONE'
+    | 'BLOCKED'
+    | 'CANCELLED';
+
+  assigneeId?: string;
+
+  dueAt?: string;
 }
 
 export class TaskService {
-  private static SIMULATED_LATENCY = 150;
+  static async getTasks(
+    filters: GetTasksFilters = {}
+  ): Promise<TaskDetail[]> {
+    const params =
+      new URLSearchParams();
 
-  // DELAY DETECTION LOGIC HELPER FUNCTIONS (Requirement 7)
-  
-  static isOverdue(task: TaskDetail): boolean {
-    if (task.status === 'DONE' || task.status === 'CANCELLED') return false;
-    const dueDate = new Date(task.dueDate);
-    return dueDate < CURRENT_DATE;
-  }
-
-  static isDueSoon(task: TaskDetail): boolean {
-    if (task.status === 'DONE' || task.status === 'CANCELLED') return false;
-    const dueDate = new Date(task.dueDate);
-    const timeDiff = dueDate.getTime() - CURRENT_DATE.getTime();
-    const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
-    return daysDiff >= 0 && daysDiff <= 3;
-  }
-
-  static calculateDelayDays(task: TaskDetail): number {
-    if (task.status === 'DONE' || task.status === 'CANCELLED') return 0;
-    const dueDate = new Date(task.dueDate);
-    if (dueDate < CURRENT_DATE) {
-      const diffTime = Math.abs(CURRENT_DATE.getTime() - dueDate.getTime());
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    }
-    return 0;
-  }
-
-  // ENHANCE MOCK DATA WITH DYNAMIC PROPERTIES
-  private static enrichTask(task: TaskDetail): TaskDetail {
-    return {
-      ...task,
-      dependencies: task.dependencies.map((dep) => {
-        // Find current status of dependent tasks in-memory to dynamically reflect blocking task completions!
-        const actualTask = localTasks.find((t) => t.id === dep.id);
-        return {
-          ...dep,
-          status: actualTask ? actualTask.status : dep.status,
-        };
-      }),
-    };
-  }
-
-  private static delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  static async getTasks(filters: GetTasksFilters = {}): Promise<PaginatedTasks> {
-    await this.delay(this.SIMULATED_LATENCY);
-
-    const {
-      search = '',
-      projectId = 'ALL',
-      status = 'ALL',
-      priority = 'ALL',
-      category = 'ALL',
-      sortBy = 'dueDate',
-      sortOrder = 'asc',
-      page = 1,
-      limit = 10,
-    } = filters;
-
-    let filtered = localTasks.map((t) => this.enrichTask(t));
-
-    // Apply Search
-    if (search.trim()) {
-      const query = search.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.title.toLowerCase().includes(query) ||
-          t.description.toLowerCase().includes(query) ||
-          t.projectName.toLowerCase().includes(query) ||
-          t.id.toLowerCase().includes(query)
+    // SEARCH
+    if (
+      filters.search?.trim()
+    ) {
+      params.append(
+        'search',
+        filters.search
       );
     }
 
-    // Apply Project Filter
-    if (projectId && projectId !== 'ALL') {
-      filtered = filtered.filter((t) => t.projectId === projectId);
+    // PROJECT FILTER
+    if (
+      filters.projectId &&
+      filters.projectId !==
+        'ALL'
+    ) {
+      params.append(
+        'projectId',
+        filters.projectId
+      );
     }
 
-    // Apply Status Filter
-    if (status && status !== 'ALL') {
-      filtered = filtered.filter((t) => t.status === status);
+    // STATUS FILTER
+    if (
+      filters.status &&
+      filters.status !==
+        'ALL'
+    ) {
+      params.append(
+        'status',
+        filters.status
+      );
     }
 
-    // Apply Priority Filter
-    if (priority && priority !== 'ALL') {
-      filtered = filtered.filter((t) => t.priority === priority);
+    // PRIORITY FILTER
+    if (
+      filters.priority &&
+      filters.priority !==
+        'ALL'
+    ) {
+      params.append(
+        'priority',
+        filters.priority
+      );
     }
 
-    // Apply Category Filter
-    if (category && category !== 'ALL') {
-      filtered = filtered.filter((t) => t.category === category);
-    }
+    const query =
+      params.toString();
 
-    // Apply Sorting
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      if (sortBy === 'dueDate') {
-        comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      } else if (sortBy === 'progress') {
-        comparison = a.progress - b.progress;
-      } else if (sortBy === 'priority') {
-        const priorityWeight = { URGENT: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-        comparison = priorityWeight[a.priority] - priorityWeight[b.priority];
-      } else if (sortBy === 'name') {
-        comparison = a.title.localeCompare(b.title);
+    const tasks =
+      await api<any[]>(
+        `/tasks${
+          query
+            ? `?${query}`
+            : ''
+        }`
+      );
+
+    return tasks.map(
+      (t) => ({
+        id: t.id,
+
+        title:
+          t.title,
+
+        description:
+          t.description,
+
+        projectId:
+          t.projectId,
+
+        projectName:
+          t.project
+            ?.name ??
+          'Unknown Project',
+
+        stage:
+          t.stage,
+
+        status:
+          t.status,
+
+        priority:
+          t.priority,
+
+        dueAt:
+          t.dueAt,
+
+        assigneeId:
+  t.assigneeId,
+
+assignee:
+  t.assignee
+    ? {
+        id:
+          t.assignee.id,
+
+        firstName:
+          t.assignee.firstName,
+
+        lastName:
+          t.assignee.lastName,
       }
+    : undefined,
 
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
-    const total = filtered.length;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedData = filtered.slice(startIndex, endIndex);
-    const totalPages = Math.max(1, Math.ceil(total / limit));
-
-    return {
-      data: paginatedData,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+        createdAt:
+          t.createdAt,
+      })
+    );
   }
 
-  static async getTaskById(id: string): Promise<TaskDetail | null> {
-    await this.delay(this.SIMULATED_LATENCY);
-    const found = localTasks.find((t) => t.id === id);
-    if (!found) return null;
+  static async getTaskById(
+    id: string
+  ): Promise<TaskDetail> {
+    const t =
+      await api<any>(
+        `/tasks/${id}`
+      );
 
-    // Fetch up-to-date related project details to bind project contexts
-    const proj = await ProjectService.getProjectById(found.projectId);
-    
-    return this.enrichTask({
-      ...found,
-      projectName: proj ? proj.name : found.projectName,
-      projectStage: proj ? proj.currentStage : found.projectStage,
-    });
+    return {
+      id: t.id,
+
+      title:
+        t.title,
+
+      description:
+        t.description,
+
+      projectId:
+        t.projectId,
+
+      projectName:
+        t.project?.name,
+
+      stage:
+        t.stage,
+
+      status:
+        t.status,
+
+      priority:
+        t.priority,
+
+      dueAt:
+        t.dueAt,
+
+      assigneeId:
+  t.assigneeId,
+
+assignee:
+  t.assignee
+    ? {
+        id:
+          t.assignee.id,
+
+        firstName:
+          t.assignee.firstName,
+
+        lastName:
+          t.assignee.lastName,
+      }
+    : undefined,
+
+      createdAt:
+        t.createdAt,
+    };
   }
 
   static async createTask(
-    data: Omit<
-      TaskDetail,
-      'id' | 'projectName' | 'projectStage' | 'progress' | 'dependencies' | 'comments' | 'attachments' | 'createdAt' | 'assignedDate' | 'startedDate' | 'completedDate'
-    >
+    data: CreateTaskInput
   ): Promise<TaskDetail> {
-    await this.delay(this.SIMULATED_LATENCY);
-
-    // Resolve related project details
-    const proj = await ProjectService.getProjectById(data.projectId);
-    const projectName = proj ? proj.name : 'Unknown Solar Installation';
-    const projectStage = proj ? proj.currentStage : 'PROJECT_CREATED';
-
-    const count = localTasks.length + 1001;
-    const id = `t-${count}`;
-
-    const newTask: TaskDetail = {
-      ...data,
-      id,
-      projectName,
-      projectStage,
-      progress: data.status === 'DONE' ? 100 : 0,
-      dependencies: [],
-      comments: [
+    const task =
+      await api<any>(
+        '/tasks',
         {
-          id: `c-${id}-01`,
-          authorName: 'System',
-          authorRole: 'System Thread',
-          body: `Task successfully cataloged under project ${projectName}.`,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      attachments: [],
-      createdAt: new Date().toISOString().split('T')[0],
-      assignedDate: data.assigneeName ? new Date().toISOString().split('T')[0] : undefined,
-      startedDate: data.status === 'IN_PROGRESS' ? new Date().toISOString().split('T')[0] : undefined,
-      completedDate: data.status === 'DONE' ? new Date().toISOString().split('T')[0] : undefined,
-    };
+          method:
+            'POST',
 
-    localTasks.push(newTask);
-    return newTask;
-  }
+          body:
+            JSON.stringify(
+              data
+            ),
+        }
+      );
 
-  static async updateTask(id: string, updates: Partial<TaskDetail>): Promise<TaskDetail | null> {
-    await this.delay(this.SIMULATED_LATENCY);
+    return {
+      id: task.id,
 
-    const index = localTasks.findIndex((t) => t.id === id);
-    if (index < 0) return null;
+      title:
+        task.title,
 
-    const current = localTasks[index];
-    
-    // Auto populate timeline audit dates based on status modifications
-    const finalUpdates: Partial<TaskDetail> = { ...updates };
-    if (updates.status && updates.status !== current.status) {
-      if (updates.status === 'IN_PROGRESS') {
-        finalUpdates.startedDate = new Date().toISOString().split('T')[0];
-      } else if (updates.status === 'DONE') {
-        finalUpdates.completedDate = new Date().toISOString().split('T')[0];
-        finalUpdates.progress = 100;
+      description:
+        task.description,
+
+      projectId:
+        task.projectId,
+
+      projectName:
+        task.project
+          ?.name,
+
+      stage:
+        task.stage,
+
+      status:
+        task.status,
+
+      priority:
+        task.priority,
+
+      dueAt:
+        task.dueAt,
+
+      assigneeId:
+  task.assigneeId,
+
+assignee:
+  task.assignee
+    ? {
+        id:
+          task.assignee.id,
+
+        firstName:
+          task.assignee.firstName,
+
+        lastName:
+          task.assignee.lastName,
       }
-    }
+    : undefined,
 
-    const updatedTask: TaskDetail = {
-      ...current,
-      ...finalUpdates,
-      id: current.id,
-      projectId: current.projectId,
+      createdAt:
+        task.createdAt,
     };
-
-    localTasks[index] = updatedTask;
-    return this.enrichTask(updatedTask);
   }
 
-  static async deleteTask(id: string): Promise<boolean> {
-    await this.delay(this.SIMULATED_LATENCY);
-    const before = localTasks.length;
-    localTasks = localTasks.filter((t) => t.id !== id);
-    return localTasks.length < before;
+  static async updateTask(
+    id: string,
+    data: Partial<CreateTaskInput>
+  ): Promise<TaskDetail> {
+    const task =
+      await api<any>(
+        `/tasks/${id}`,
+        {
+          method:
+            'PATCH',
+
+          body:
+            JSON.stringify(
+              data
+            ),
+        }
+      );
+
+    return {
+      id: task.id,
+
+      title:
+        task.title,
+
+      description:
+        task.description,
+
+      projectId:
+        task.projectId,
+
+      projectName:
+        task.project
+          ?.name,
+
+      stage:
+        task.stage,
+
+      status:
+        task.status,
+
+      priority:
+        task.priority,
+
+      dueAt:
+        task.dueAt,
+
+      assigneeId:
+  task.assigneeId,
+
+assignee:
+  task.assignee
+    ? {
+        id:
+          task.assignee.id,
+
+        firstName:
+          task.assignee.firstName,
+
+        lastName:
+          task.assignee.lastName,
+      }
+    : undefined,
+
+      createdAt:
+        task.createdAt,
+    };
+  }
+
+  static async deleteTask(
+    id: string
+  ): Promise<void> {
+    await api(
+      `/tasks/${id}`,
+      {
+        method:
+          'DELETE',
+      }
+    );
+  }
+
+  static async markCompleted(
+    id: string
+  ): Promise<TaskDetail> {
+    return this.updateTask(
+      id,
+      {
+        status:
+          'DONE',
+      }
+    );
+  }
+
+  static isOverdue(
+    task: TaskDetail
+  ): boolean {
+    if (
+      !task.dueAt
+    )
+      return false;
+
+    return (
+      task.status !==
+        'DONE' &&
+      new Date(
+        task.dueAt
+      ) < new Date()
+    );
+  }
+
+  static calculateDelayDays(
+    task: TaskDetail
+  ): number {
+    if (
+      !task.dueAt ||
+      task.status ===
+        'DONE'
+    )
+      return 0;
+
+    const due =
+      new Date(
+        task.dueAt
+      );
+
+    const now =
+      new Date();
+
+    if (due >= now)
+      return 0;
+
+    const diff =
+      now.getTime() -
+      due.getTime();
+
+    return Math.ceil(
+      diff /
+        (1000 *
+          60 *
+          60 *
+          24)
+    );
+  }
+
+  static isDueSoon(
+    task: TaskDetail
+  ): boolean {
+    if (
+      !task.dueAt ||
+      task.status ===
+        'DONE'
+    )
+      return false;
+
+    const due =
+      new Date(
+        task.dueAt
+      );
+
+    const now =
+      new Date();
+
+    const diff =
+      due.getTime() -
+      now.getTime();
+
+    const days =
+      diff /
+      (1000 *
+        60 *
+        60 *
+        24);
+
+    return (
+      days >= 0 &&
+      days <= 3
+    );
   }
 }

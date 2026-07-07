@@ -1,11 +1,25 @@
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 .turbo
-.env
-.env.local
-*.log
-.DS_Store
 coverage
+
+# Environment files (ignore everywhere)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# IDE files
 .idea
 .vscode/*
 !.vscode/extensions.json

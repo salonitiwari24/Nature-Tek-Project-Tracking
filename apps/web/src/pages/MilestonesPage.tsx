@@ -34,17 +34,47 @@ export default function MilestonesPage() {
   });
 
   useEffect(() => {
-    const loadProjectsFilter = async () => {
-      try {
-        const response = await ProjectService.getProjects({ limit: 100 });
-        setProjectsList(response.data.map((p) => ({ id: p.id, name: p.name })));
-      } catch (err) {
-        console.error('Failed to load filter projects:', err);
-      }
-    };
-    loadProjectsFilter();
-  }, []);
+  const loadProjectsFilter = async () => {
+    try {
+      // wait for token
+      const token =
+        localStorage.getItem(
+          'accessToken'
+        );
 
+      if (!token) {
+        console.warn(
+          'No access token found'
+        );
+        return;
+      }
+
+      const response =
+        await ProjectService.getProjects({
+          limit: 100,
+        });
+
+      console.log(
+        'Projects loaded:',
+        response
+      );
+
+      setProjectsList(
+        response.map((p) => ({
+          id: p.id,
+          name: p.name,
+        }))
+      );
+    } catch (err) {
+      console.error(
+        'Failed to load filter projects:',
+        err
+      );
+    }
+  };
+
+  loadProjectsFilter();
+}, []);
   useEffect(() => {
     const fetchMilestonesData = async () => {
       setLoading(true);
