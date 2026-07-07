@@ -1,67 +1,360 @@
-# Nature Tek Solar – Project Tracking & Management System
+# Nature Tek Solar Project Tracking & Management System
 
-Enterprise-grade solar project management platform.
+An enterprise-grade web application for managing the complete lifecycle of solar installation projects. The platform streamlines project planning, milestone tracking, progress monitoring, lifecycle management, and team collaboration through a secure role-based architecture.
 
-## Documentation
+---
 
-| Phase | Document |
-|-------|----------|
-| 1 | [Requirement Analysis](docs/01-requirement-analysis/SRS.md) |
-| 2 | [Architecture](docs/02-architecture/ARCHITECTURE.md) |
+## Overview
 
-## Stack
+Managing solar projects involves coordinating multiple stakeholders, tracking installation milestones, monitoring project progress, and ensuring timely completion. Traditional spreadsheet-based workflows often result in poor visibility, delayed updates, and inefficient project management.
 
-- **Monorepo:** pnpm + Turborepo
-- **API:** NestJS + Prisma + PostgreSQL
-- **Web:** React + Vite + Tailwind CSS 4
-- **Infra (local):** Docker Compose (Postgres, Redis, MinIO)
+The Nature Tek Solar Project Tracking & Management System provides a centralized platform that enables organizations to manage projects from creation to handover while offering real-time dashboards, automated progress calculation, lifecycle tracking, and secure role-based access.
 
-## Quick Start
+---
 
-### Prerequisites
+## Key Features
 
-- Node.js 20+
-- pnpm 9+
-- Docker Desktop
+### Authentication & Authorization
 
-### Setup
+- JWT-based authentication
+- Secure login system
+- Protected REST APIs
+- Role-Based Access Control (RBAC)
+- Persistent user sessions
+
+Supported Roles
+
+- Admin
+- Project Manager
+- Supervisor
+- Executive
+- Installer (Planned)
+
+---
+
+### Project Management
+
+Manage the complete lifecycle of solar projects.
+
+Features include:
+
+- Create and manage projects
+- Client and site information
+- Capacity and project type management
+- Target completion dates
+- Project member assignment
+- Current lifecycle stage tracking
+- Automatic progress calculation
+- Delay detection
+
+Each project stores:
+
+- Project Code
+- Client Information
+- Address
+- Capacity (kW)
+- Project Type
+- Assigned Project Manager
+- Assigned Supervisor
+- Timeline
+- Current Status
+
+---
+
+### Milestone Management
+
+Every project consists of multiple milestones.
+
+Example workflow:
+
+- Site Survey
+- Design Approval
+- Material Procurement
+- Material Delivery
+- Structure Installation
+- Panel Mounting
+- Electrical Wiring
+- Inverter Installation
+- Testing & Commissioning
+- Grid Approval
+- Project Handover
+- Completed
+
+Supported operations:
+
+- Create Milestones
+- Update Status
+- Edit
+- Delete
+- Target Dates
+- Completion Dates
+- Lifecycle Tracking
+
+---
+
+### Automatic Progress Tracking
+
+Project progress is automatically calculated based on milestone completion.
+
+Example
+
+5 Milestones
+
+- Completed: 2
+
+Progress = 40%
+
+No manual progress updates are required.
+
+---
+
+### Automatic Delay Detection
+
+Projects are automatically marked as delayed when:
+
+- Target End Date has passed
+- Project Status is not Completed
+
+Delayed projects are immediately reflected in the management dashboard.
+
+---
+
+### Dashboard & Analytics
+
+The dashboard provides a centralized management overview.
+
+Includes:
+
+- Total Projects
+- Active Projects
+- Completed Projects
+- Delayed Projects
+
+Interactive Analytics
+
+- Project Status Distribution
+- Monthly Completion Trends
+- Recent Projects
+- Lifecycle Overview
+
+---
+
+### Lifecycle Management
+
+Every project follows a predefined workflow.
+
+```
+Project Created
+        ↓
+Site Survey
+        ↓
+Design Approval
+        ↓
+Material Procurement
+        ↓
+Material Delivery
+        ↓
+Structure Installation
+        ↓
+Panel Mounting
+        ↓
+Electrical Wiring
+        ↓
+Inverter Installation
+        ↓
+Testing & Commissioning
+        ↓
+Grid Approval
+        ↓
+Project Handover
+        ↓
+Completed
+```
+
+The lifecycle allows management teams to monitor every installation stage in real time.
+
+---
+
+## Technology Stack
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- TanStack Query
+- Lucide Icons
+- Zod
+
+### Backend
+
+- NestJS
+- TypeScript
+- Prisma ORM
+- JWT Authentication
+- Passport.js
+- Swagger
+- Class Validator
+
+### Database
+
+- PostgreSQL
+- Prisma ORM
+
+---
+
+## System Architecture
+
+```
+                React Frontend
+                       │
+                REST API Layer
+                       │
+               NestJS Backend
+                       │
+                 Prisma ORM
+                       │
+                PostgreSQL Database
+```
+
+---
+
+## Database Design
+
+Core entities:
+
+- Users
+- Organizations
+- Projects
+- Milestones
+- Tasks
+- Project Members
+- Audit Logs
+- Lifecycle History
+
+Relationship
+
+```
+Organization
+      │
+   Projects
+      │
+  Milestones
+      │
+     Tasks
+
+Users
+      │
+Project Members
+      │
+   Projects
+```
+
+---
+
+## REST API
+
+Example endpoints
+
+```
+POST   /auth/login
+
+GET    /projects
+POST   /projects
+PATCH  /projects/:id
+
+GET    /milestones
+POST   /milestones
+PATCH  /milestones/:id
+```
+
+---
+
+## Security
+
+- JWT Authentication
+- Role Guards
+- Protected Routes
+- Organization Isolation
+- Input Validation
+- Parameterized Database Queries
+
+---
+
+## Current Workflow
+
+```
+User Login
+      ↓
+Create Project
+      ↓
+Create Milestones
+      ↓
+Update Milestones
+      ↓
+Automatic Progress Calculation
+      ↓
+Dashboard Updates
+      ↓
+Project Completion
+```
+
+---
+
+## Future Enhancements
+
+- Task Management Module
+- User Management
+- Notification System
+- Email Reminders
+- Document Uploads
+- Audit Log Interface
+- Analytics & Reports
+- Mobile Optimization
+
+---
+
+## Installation
 
 ```bash
-# Copy environment file
-cp .env.example .env
+git clone https://github.com/salonitiwari24/Project-Tracking.git
 
-# Start infrastructure
-pnpm docker:up
+cd Project-Tracking
 
-# Install dependencies
-pnpm install
+# Frontend
+npm install
 
-# Generate Prisma client & push schema
-pnpm db:generate
-pnpm db:push
-pnpm db:seed
+# Backend
+npm install
 
-# Start dev servers
-pnpm dev
+# Start development server
+npm run dev
 ```
 
-- **Web:** http://localhost:5173
-- **API:** http://localhost:3001/api/v1
-- **Swagger:** http://localhost:3001/api/docs
+---
 
-### Seed credentials
-
-| Email | Password | Role |
-|-------|----------|------|
-| admin@naturetek.com | Admin@123 | Admin |
-| pm@naturetek.com | Pm@12345 | Project Manager |
-
-## Project structure
+## Folder Structure
 
 ```
-apps/api          NestJS REST API
-apps/web          React SPA
-packages/database Prisma schema & client
-packages/shared   Shared types & Zod schemas
-docs/             Phase documentation
+frontend/
+backend/
+docs/
 ```
+
+---
+
+## Screenshots
+
+Add screenshots of:
+
+- Login Page
+- Dashboard
+- Project Management
+- Project Details
+- Milestone Management
+- Analytics Dashboard
+
+---
+t is licensed under the MIT License.
